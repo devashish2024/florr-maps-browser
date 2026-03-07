@@ -22,6 +22,15 @@ export default function App() {
   const [mapData, setMapData] = useState(null);
   const [mapList, setMapList] = useState([]);
   const [currentFile, setCurrentFile] = useState(() => {
+    try {
+      const raw = localStorage.getItem("visited_file");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.type === "map" && parsed.id) return parsed;
+        if (parsed?.type === "readme") return parsed;
+      }
+    } catch { /* ignore */ }
+    // Legacy fallback
     const visited = localStorage.getItem("visited_map");
     if (visited) return { type: "map", id: visited };
     return { type: "readme" };
@@ -41,7 +50,6 @@ export default function App() {
     const ok = await ensureMapLoaded(mapId, onStatus);
     if (!ok) return null;
     const data = parseMap(mapId);
-    localStorage.setItem("visited_map", mapId);
     return data;
   }, []);
 
@@ -84,13 +92,21 @@ export default function App() {
         setMapList(checkedMeta);
 
         // 5. Determine start map
-        const visited = localStorage.getItem("visited_map");
-        const hadVisited = visited !== null;
-        let startMap;
+        let visitedFile = null;
+        try {
+          const raw = localStorage.getItem("visited_file");
+          if (raw) visitedFile = JSON.parse(raw);
+        } catch { /* ignore */ }
+        // Legacy fallback
+        if (!visitedFile) {
+          const legacy = localStorage.getItem("visited_map");
+          if (legacy) visitedFile = { type: "map", id: legacy };
+        }
 
-        if (hadVisited) {
-          const known = checkedMeta.find((m) => m.id === visited);
-          startMap = known?.ok ? visited : checkedMeta.find((m) => m.ok)?.id;
+        let startMap;
+        if (visitedFile?.type === "map" && visitedFile.id) {
+          const known = checkedMeta.find((m) => m.id === visitedFile.id);
+          startMap = known?.ok ? visitedFile.id : checkedMeta.find((m) => m.ok)?.id;
         } else {
           const gardenMeta = checkedMeta.find((m) => m.id === "garden");
           startMap = gardenMeta?.ok ? "garden" : checkedMeta.find((m) => m.ok)?.id;
@@ -105,8 +121,8 @@ export default function App() {
         const data = await loadAndSelectMap(startMap, setStatus);
         if (cancelled || !data) return;
 
-        // Only switch to map view if user previously visited a map
-        if (hadVisited) {
+        // Only switch to map view if last visited was a map
+        if (visitedFile?.type === "map") {
           setCurrentFile({ type: "map", id: startMap });
         }
         setMapData(data);
@@ -137,6 +153,12 @@ export default function App() {
     return () => { cancelled = true; };
   }, [loadAndSelectMap]);
 
+  const saveVisited = (file) => {
+    if (file.type === "map" || file.type === "readme") {
+      localStorage.setItem("visited_file", JSON.stringify(file));
+    }
+  };
+
   const handleFileSelect = useCallback(async (file) => {
     if (file.type === "map") {
       if (currentFile?.type === "map" && file.id === currentFile.id) return;
@@ -144,8 +166,10 @@ export default function App() {
       if (!data) return;
       setMapData(data);
       setCurrentFile(file);
+      saveVisited(file);
     } else {
       setCurrentFile(file);
+      saveVisited(file);
     }
   }, [currentFile, loadAndSelectMap]);
 
@@ -223,7 +247,8 @@ export default function App() {
           </button>
         )}
 
-        {currentFile?.type === "readme" && <ReadmeViewer />}
+        {currentFile?.type === "readme" && <ReadmeViewer src="/README.md" />}
+        {currentFile?.type === "help" && <ReadmeViewer src="/HELP.md" />}
         {currentFile?.type === "map" && mapData && sprites && (
           <MapCanvas
             mapData={mapData}

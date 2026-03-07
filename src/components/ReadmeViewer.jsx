@@ -7,7 +7,7 @@ function mdToHtml(md) {
   md = md.replace(/((?:^\|.+\|\s*\n)+)/gm, (match) => {
     const placeholder = `__TABLE_${tableBlocks.length}__`;
     tableBlocks.push(match.trim());
-    return placeholder;
+    return placeholder + "\n";
   });
 
   let html = md
@@ -83,19 +83,21 @@ function mdToHtml(md) {
   return html;
 }
 
-export default function ReadmeViewer() {
+export default function ReadmeViewer({ src = "/README.md" }) {
   const [html, setHtml] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("/README.md")
+    setHtml(null);
+    setError(null);
+    fetch(src)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.text();
       })
       .then((md) => setHtml(mdToHtml(md)))
-      .catch(() => setError("Could not load README.md"));
-  }, []);
+      .catch(() => setError(`Could not load ${src}`));
+  }, [src]);
 
   if (error) {
     return (

@@ -205,7 +205,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       if (e.button === 0) st.grab = true;
       if (e.button === 1) {
         e.preventDefault();
-        st.camera.fov = 0.125;
+        st.camera.fov = 0.25;
       }
     };
     const onMouseUp = (e) => {

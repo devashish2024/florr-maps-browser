@@ -58,8 +58,7 @@ body,
   color: #e8e8e8;
   font-size: 32px;
   margin-bottom: 4px;
-  border-bottom: 1px solid #333;
-  padding-bottom: 12px;
+  padding-bottom: 4px;
 }
 
 .readme-content h2 {

@@ -1,4 +1,69 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+
+const FILE_URLS = {
+  readme: null,
+  help: null,
+  tileset: "https://florr.io/static/tiles/tileset.tsj",
+  maplist: "https://florr.io/static/i18n/en_US/maps.txt",
+  map: (id) => `https://florr.io/static/maps/${id}.tmj`,
+  tile: (name) => `https://florr.io/static/tiles/${name}`,
+};
+
+function getFileUrl(file) {
+  if (!file) return null;
+  if (file.type === "map") return FILE_URLS.map(file.id);
+  if (file.type === "tile") return FILE_URLS.tile(file.tileName);
+  return FILE_URLS[file.type] || null;
+}
+
+function ContextMenu({ x, y, items, onClose }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handle = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    addEventListener("mousedown", handle);
+    return () => removeEventListener("mousedown", handle);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "fixed",
+        left: x,
+        top: y,
+        background: "#252526",
+        border: "1px solid #454545",
+        borderRadius: 4,
+        padding: "4px 0",
+        zIndex: 1000,
+        minWidth: 160,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+        fontFamily: "'Game', 'Ubuntu', sans-serif",
+        fontSize: 13,
+      }}
+    >
+      {items.map((item, i) => (
+        <div
+          key={i}
+          onClick={() => { item.action(); onClose(); }}
+          style={{
+            padding: "5px 16px",
+            cursor: "pointer",
+            color: item.disabled ? "#555" : "#ccc",
+            pointerEvents: item.disabled ? "none" : "auto",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "#094771")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+        >
+          {item.label}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function FolderItem({ name, expanded, onToggle }) {
   return (
@@ -24,10 +89,11 @@ function FolderItem({ name, expanded, onToggle }) {
   );
 }
 
-function FileItem({ name, label, icon = "📄", indent = 0, active, disabled, onClick }) {
+function FileItem({ name, label, icon = "📄", indent = 0, active, disabled, onClick, onContextMenu }) {
   return (
     <div
       onClick={disabled ? undefined : onClick}
+      onContextMenu={disabled ? undefined : onContextMenu}
       style={{
         display: "flex",
         alignItems: "center",
@@ -59,6 +125,7 @@ function FileItem({ name, label, icon = "📄", indent = 0, active, disabled, on
 export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSelect, width, isMobileOpen, onMobileClose }) {
   const [mapsExpanded, setMapsExpanded] = useState(true);
   const [tilesExpanded, setTilesExpanded] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState(null);
 
   // Sort maps: available first, errored/disabled at bottom
   const sortedMaps = useMemo(() => {
@@ -71,6 +138,23 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
     onFileSelect(file);
     onMobileClose?.();
   };
+
+  const openContextMenu = useCallback((e, file) => {
+    e.preventDefault();
+    const url = getFileUrl(file);
+    const items = [];
+    items.push({
+      label: "Copy URL",
+      disabled: !url,
+      action: () => url && navigator.clipboard.writeText(url),
+    });
+    items.push({
+      label: "Open URL",
+      disabled: !url,
+      action: () => url && window.open(url, "_blank", "noopener"),
+    });
+    setCtxMenu({ x: e.clientX, y: e.clientY, items });
+  }, []);
 
   return (
     <>
@@ -149,18 +233,28 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
             name="README.md"
             active={currentFile?.type === "readme"}
             onClick={() => handleSelect({ type: "readme" })}
+            onContextMenu={(e) => openContextMenu(e, { type: "readme" })}
+          />
+          <FileItem
+            icon="❓"
+            name="HELP.md"
+            active={currentFile?.type === "help"}
+            onClick={() => handleSelect({ type: "help" })}
+            onContextMenu={(e) => openContextMenu(e, { type: "help" })}
           />
           <FileItem
             icon="📋"
             name="tileset.tsj"
             active={currentFile?.type === "tileset"}
             onClick={() => handleSelect({ type: "tileset" })}
+            onContextMenu={(e) => openContextMenu(e, { type: "tileset" })}
           />
           <FileItem
             icon="📋"
             name="maps.txt"
             active={currentFile?.type === "maplist"}
             onClick={() => handleSelect({ type: "maplist" })}
+            onContextMenu={(e) => openContextMenu(e, { type: "maplist" })}
           />
 
           {/* maps/ folder */}
@@ -180,6 +274,7 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
                 active={currentFile?.type === "map" && currentFile?.id === m.id}
                 disabled={m.disabled}
                 onClick={() => handleSelect({ type: "map", id: m.id })}
+                onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
               />
             ))}
 
@@ -198,10 +293,19 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
                 indent={1}
                 active={currentFile?.type === "tile" && currentFile?.id === t.id}
                 onClick={() => handleSelect({ type: "tile", id: t.id })}
+                onContextMenu={(e) => openContextMenu(e, { type: "tile", tileName: t.name })}
               />
             ))}
         </div>
       </div>
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={ctxMenu.items}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </>
   );
 }
