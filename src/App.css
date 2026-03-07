@@ -157,7 +157,9 @@ body,
 
 /* Skeleton loading animations */
 @keyframes skeleton-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .skeleton-spinner {

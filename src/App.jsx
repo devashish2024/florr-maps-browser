@@ -3,9 +3,11 @@ import MapCanvas from "./components/MapCanvas.jsx";
 import FileBrowser from "./components/FileBrowser.jsx";
 import TileViewer from "./components/TileViewer.jsx";
 import ReadmeViewer from "./components/ReadmeViewer.jsx";
+import MapListViewer from "./components/MapListViewer.jsx";
+import TilesetViewer from "./components/TilesetViewer.jsx";
 import { loadTiles } from "./lib/tileset.js";
 import { loadMapList } from "./lib/maplist.js";
-import { ensureMapLoaded } from "./lib/maploader.js";
+import { ensureMapLoaded, refreshMap } from "./lib/maploader.js";
 import { parseMap } from "./lib/tiled.js";
 import { svgToCanvas } from "./lib/svgrender.js";
 import { fetchText } from "./lib/proxy.js";
@@ -45,6 +47,7 @@ export default function App() {
     return parseInt(localStorage.getItem("panel_width")) || 240;
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadAndSelectMap = useCallback(async (mapId, onStatus) => {
     const ok = await ensureMapLoaded(mapId, onStatus);
@@ -175,6 +178,40 @@ export default function App() {
     }
   }, [currentFile, loadAndSelectMap]);
 
+  const handleRefreshAllMaps = useCallback(async () => {
+    setRefreshing(true);
+    setStatus("Refreshing maps...");
+    let done = 0;
+    const total = mapList.length;
+    const results = await Promise.allSettled(
+      mapList.map(async (m) => {
+        const ok = await refreshMap(m.id);
+        done++;
+        setStatus(`Refreshing maps... ${done}/${total}`);
+        return { ...m, ok, disabled: !ok, fetched: true };
+      })
+    );
+    const updated = results.map((r, i) => r.status === "fulfilled" ? r.value : { ...mapList[i], ok: false, disabled: true, fetched: true });
+    setMapList(updated);
+    setRefreshing(false);
+  }, [mapList]);
+
+  const handleRefreshAllTiles = useCallback(async () => {
+    setRefreshing(true);
+    setStatus("Refreshing tiles...");
+    const { tiles: tileSvgs, tileFileEntries, rawTileset: rawTs } = await loadTiles((s) => setStatus(s), true);
+    setTileFiles(tileFileEntries);
+    setRawTileset(rawTs);
+    const tileSprites = new Map();
+    for (const [id, svg] of tileSvgs) {
+      const s = SPECIAL_IDS.has(id) ? 2048 : 512;
+      const canvas = svgToCanvas(svg, s, s);
+      if (canvas) tileSprites.set(id, canvas);
+    }
+    setSprites(tileSprites);
+    setRefreshing(false);
+  }, []);
+
   const handleResizeStart = useCallback((e) => {
     e.preventDefault();
     document.body.style.cursor = "col-resize";
@@ -257,46 +294,20 @@ export default function App() {
           <TileViewer tileId={currentFile.id} sprites={sprites} />
         )}
         {!loading && currentFile?.type === "tileset" && (
-          <div style={{ color: "#888", padding: 40, fontSize: 18, fontFamily: "Game, Ubuntu, sans-serif", height: "100%", overflow: "auto" }}>
-            <h2 style={{ color: "#ccc", marginBottom: 16 }}>tileset.tsj</h2>
-            <p>Tileset definition file containing {tileFiles.length} tile references.</p>
-            <p style={{ marginTop: 8, fontSize: 14, marginBottom: 20 }}>Open individual tiles from the tiles/ folder.</p>
-            <pre style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: 16,
-              fontSize: 12,
-              fontFamily: "GameMono, monospace",
-              color: "#9cdcfe",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-              maxHeight: "calc(100vh - 220px)",
-              overflow: "auto",
-            }}>{rawTileset}</pre>
-          </div>
+          <TilesetViewer
+            tileFiles={tileFiles}
+            rawTileset={rawTileset}
+            onRefreshAllTiles={handleRefreshAllTiles}
+          />
         )}
         {!loading && currentFile?.type === "maplist" && (
-          <div style={{ color: "#888", padding: 40, fontSize: 18, fontFamily: "Game, Ubuntu, sans-serif", height: "100%", overflow: "auto" }}>
-            <h2 style={{ color: "#ccc", marginBottom: 16 }}>maps.txt</h2>
-            <p>{mapList.filter((m) => !m.disabled).length} maps available.</p>
-            <p style={{ marginTop: 8, fontSize: 14, marginBottom: 20 }}>Open individual maps from the maps/ folder.</p>
-            <pre style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: 16,
-              fontSize: 12,
-              fontFamily: "GameMono, monospace",
-              color: "#9cdcfe",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-              maxHeight: "calc(100vh - 220px)",
-              overflow: "auto",
-            }}>{rawMapList}</pre>
-          </div>
+          <MapListViewer
+            mapList={mapList}
+            onFileSelect={handleFileSelect}
+            onRefreshAllMaps={handleRefreshAllMaps}
+          />
         )}
-        {loading && (
+        {(loading || refreshing) && (
           <div
             style={{
               position: "absolute",
