@@ -1,0 +1,24 @@
+@font-face {
+  font-family: "Game";
+  src: url("/font/Ubuntu-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "GameMono";
+  src: url("/font/UbuntuMono-Bold.ttf") format("truetype");
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #181818;
+  font-family: "Game", sans-serif;
+}
