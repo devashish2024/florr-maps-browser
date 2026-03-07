@@ -81,14 +81,16 @@ export default function App() {
         if (cancelled) return;
         if (!cancelled) setRawMapList(rawMl);
 
-        // 4. Try to load each map to determine availability
-        setStatus("Checking map availability...");
-        const checkedMeta = [];
-        for (const m of meta) {
-          const ok = await ensureMapLoaded(m.id);
-          checkedMeta.push({ ...m, ok, disabled: !ok, fetched: true });
-        }
+        // 4. Preload all maps in parallel
+        setStatus("Loading all maps...");
+        const results = await Promise.allSettled(
+          meta.map(async (m) => {
+            const ok = await ensureMapLoaded(m.id);
+            return { ...m, ok, disabled: !ok, fetched: true };
+          })
+        );
         if (cancelled) return;
+        const checkedMeta = results.map((r, i) => r.status === "fulfilled" ? r.value : { ...meta[i], ok: false, disabled: true, fetched: true });
         setMapList(checkedMeta);
 
         // 5. Determine start map
@@ -194,72 +196,67 @@ export default function App() {
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
-      {!loading && (
-        <>
-          <FileBrowser
-            mapList={mapList}
-            tileFiles={tileFiles}
-            currentFile={currentFile}
-            onFileSelect={handleFileSelect}
-            width={panelWidth}
-            isMobileOpen={sidebarOpen}
-            onMobileClose={() => setSidebarOpen(false)}
-          />
-          <div
-            className="resize-handle"
-            onMouseDown={handleResizeStart}
-            style={{
-              width: 4,
-              cursor: "col-resize",
-              background: "#2d2d2d",
-              flexShrink: 0,
-              zIndex: 5,
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#007acc")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#2d2d2d")}
-          />
-        </>
-      )}
+      <FileBrowser
+        mapList={mapList}
+        tileFiles={tileFiles}
+        currentFile={loading && currentFile?.type !== "help" ? { type: "readme" } : currentFile}
+        onFileSelect={handleFileSelect}
+        width={panelWidth}
+        isMobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
+        loading={loading}
+      />
+      <div
+        className="resize-handle"
+        onMouseDown={handleResizeStart}
+        style={{
+          width: 4,
+          cursor: "col-resize",
+          background: "#2d2d2d",
+          flexShrink: 0,
+          zIndex: 5,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#007acc")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "#2d2d2d")}
+      />
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         {/* Mobile hamburger */}
-        {!loading && (
-          <button
-            className="sidebar-toggle"
-            onClick={() => setSidebarOpen(true)}
-            style={{
-              display: "none",
-              position: "absolute",
-              top: 10,
-              left: 10,
-              zIndex: 15,
-              background: "#2a2a2a",
-              color: "#ccc",
-              border: "1px solid #444",
-              borderRadius: 6,
-              padding: "6px 10px",
-              fontSize: 18,
-              cursor: "pointer",
-              fontFamily: "Game, Ubuntu, sans-serif",
-              lineHeight: 1,
-            }}
-          >
-            ☰
-          </button>
-        )}
+        <button
+          className="sidebar-toggle"
+          onClick={() => setSidebarOpen(true)}
+          style={{
+            display: "none",
+            position: "absolute",
+            top: 10,
+            left: 10,
+            zIndex: 15,
+            background: "#2a2a2a",
+            color: "#ccc",
+            border: "1px solid #444",
+            borderRadius: 6,
+            padding: "6px 10px",
+            fontSize: 18,
+            cursor: "pointer",
+            fontFamily: "Game, Ubuntu, sans-serif",
+            lineHeight: 1,
+          }}
+        >
+          ☰
+        </button>
 
-        {currentFile?.type === "readme" && <ReadmeViewer src="/README.md" />}
-        {currentFile?.type === "help" && <ReadmeViewer src="/HELP.md" />}
-        {currentFile?.type === "map" && mapData && sprites && (
+        {(loading && currentFile?.type !== "help" || !loading && currentFile?.type === "readme") && <ReadmeViewer src="/README.md" />}
+        {(currentFile?.type === "help") && <ReadmeViewer src="/HELP.md" />}
+        {!loading && currentFile?.type === "map" && mapData && sprites && (
           <MapCanvas
             mapData={mapData}
             sprites={sprites}
             mobSprites={mobSpritesState}
           />
         )}
-        {currentFile?.type === "tile" && sprites && (
+        {!loading && currentFile?.type === "tile" && sprites && (
           <TileViewer tileId={currentFile.id} sprites={sprites} />
         )}
-        {currentFile?.type === "tileset" && (
+        {!loading && currentFile?.type === "tileset" && (
           <div style={{ color: "#888", padding: 40, fontSize: 18, fontFamily: "Game, Ubuntu, sans-serif", height: "100%", overflow: "auto" }}>
             <h2 style={{ color: "#ccc", marginBottom: 16 }}>tileset.tsj</h2>
             <p>Tileset definition file containing {tileFiles.length} tile references.</p>
@@ -279,7 +276,7 @@ export default function App() {
             }}>{rawTileset}</pre>
           </div>
         )}
-        {currentFile?.type === "maplist" && (
+        {!loading && currentFile?.type === "maplist" && (
           <div style={{ color: "#888", padding: 40, fontSize: 18, fontFamily: "Game, Ubuntu, sans-serif", height: "100%", overflow: "auto" }}>
             <h2 style={{ color: "#ccc", marginBottom: 16 }}>maps.txt</h2>
             <p>{mapList.filter((m) => !m.disabled).length} maps available.</p>
@@ -304,14 +301,17 @@ export default function App() {
             style={{
               position: "absolute",
               left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              color: "#fff",
-              fontSize: "36px",
+              bottom: 24,
+              transform: "translateX(-50%)",
+              color: "#888",
+              fontSize: 14,
               fontFamily: "Game, Ubuntu, sans-serif",
-              fontWeight: "bold",
               textAlign: "center",
               zIndex: 100,
+              background: "rgba(30,30,30,0.85)",
+              padding: "8px 20px",
+              borderRadius: 8,
+              border: "1px solid #333",
             }}
           >
             {status}

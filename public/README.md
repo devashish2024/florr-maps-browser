@@ -27,7 +27,7 @@ FlorrMapBrowser fetches the latest map data directly from florr.io's APIs and re
 ## Credits
 
 - **[VortexPrime](https://github.com/devashish2024)** — Live fetching, bug fixes, and publishing.
-- **[nardzy](https://github.com/nardzy)** — Original florr.io map viewer logic.
+- **[nardzy](https://github.com/nardzy)**'s [florr-io-maps repo](https://github.com/nardzy/florr-io-maps) — Original florr.io map viewer logic. (most of the logic is same as his code)
 
 ### Inspiration
 

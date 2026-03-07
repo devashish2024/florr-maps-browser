@@ -122,7 +122,7 @@ function FileItem({ name, label, icon = "📄", indent = 0, active, disabled, on
   );
 }
 
-export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSelect, width, isMobileOpen, onMobileClose }) {
+export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSelect, width, isMobileOpen, onMobileClose, loading }) {
   const [mapsExpanded, setMapsExpanded] = useState(true);
   const [tilesExpanded, setTilesExpanded] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -235,6 +235,22 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
             onClick={() => handleSelect({ type: "readme" })}
             onContextMenu={(e) => openContextMenu(e, { type: "readme" })}
           />
+          {loading ? (
+            <>
+              <FileItem
+                icon="❓"
+                name="HELP.md"
+                active={currentFile?.type === "help"}
+                onClick={() => handleSelect({ type: "help" })}
+                onContextMenu={(e) => openContextMenu(e, { type: "help" })}
+              />
+              <div style={{ padding: "16px 12px", display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 13 }}>
+                <span className="skeleton-spinner" />
+                <span>Loading…</span>
+              </div>
+            </>
+          ) : (
+            <>
           <FileItem
             icon="❓"
             name="HELP.md"
@@ -296,7 +312,31 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
                 onContextMenu={(e) => openContextMenu(e, { type: "tile", tileName: t.name })}
               />
             ))}
+            </>
+          )}
         </div>
+        <a
+          href="https://mobs.ashish.top/discord"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 12px",
+            borderTop: "1px solid #333",
+            color: "#5865F2",
+            fontSize: 13,
+            textDecoration: "none",
+            fontFamily: "'Game', 'Ubuntu', sans-serif",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2d2e")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+        >
+          <img src="/discord_icon.svg" alt="" style={{ width: 16, height: 16 }} />
+          <span>Join Discord</span>
+        </a>
       </div>
       {ctxMenu && (
         <ContextMenu
