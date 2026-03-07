@@ -28,10 +28,16 @@ export const loadTiles = async (onStatus) => {
   }
 
   const tiles = new Map();
+  const tileFileEntries = [];
+  const seenImages = new Set();
   for (const [id, image] of idToImage) {
     const svg = fetchedSvg.get(image);
     if (svg) tiles.set(id, svg);
+    if (!seenImages.has(image)) {
+      seenImages.add(image);
+      tileFileEntries.push({ id, name: image });
+    }
   }
 
-  return tiles;
+  return { tiles, tileFileEntries, rawTileset: raw };
 };

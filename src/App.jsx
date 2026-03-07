@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import MapCanvas from "./components/MapCanvas.jsx";
-import MapSelect from "./components/MapSelect.jsx";
+import FileBrowser from "./components/FileBrowser.jsx";
+import TileViewer from "./components/TileViewer.jsx";
+import ReadmeViewer from "./components/ReadmeViewer.jsx";
 import { loadTiles } from "./lib/tileset.js";
 import { loadMapList } from "./lib/maplist.js";
 import { ensureMapLoaded } from "./lib/maploader.js";
@@ -19,12 +21,21 @@ export default function App() {
   const [status, setStatus] = useState("Loading...");
   const [mapData, setMapData] = useState(null);
   const [mapList, setMapList] = useState([]);
-  const [currentMap, setCurrentMap] = useState(() => {
-    return localStorage.getItem("visited_map") || "garden";
+  const [currentFile, setCurrentFile] = useState(() => {
+    const visited = localStorage.getItem("visited_map");
+    if (visited) return { type: "map", id: visited };
+    return { type: "readme" };
   });
 
   const [sprites, setSprites] = useState(null);
   const [mobSpritesState, setMobSpritesState] = useState(null);
+  const [tileFiles, setTileFiles] = useState([]);
+  const [rawTileset, setRawTileset] = useState("");
+  const [rawMapList, setRawMapList] = useState("");
+  const [panelWidth, setPanelWidth] = useState(() => {
+    return parseInt(localStorage.getItem("panel_width")) || 240;
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const loadAndSelectMap = useCallback(async (mapId, onStatus) => {
     const ok = await ensureMapLoaded(mapId, onStatus);
@@ -41,7 +52,11 @@ export default function App() {
     const init = async () => {
       try {
         // 1. Load tiles
-        const tileSvgs = await loadTiles(setStatus);
+        const { tiles: tileSvgs, tileFileEntries, rawTileset: rawTs } = await loadTiles(setStatus);
+        if (!cancelled) {
+          setTileFiles(tileFileEntries);
+          setRawTileset(rawTs);
+        }
 
         // 2. Build tile sprites
         setStatus("Building tile sprites...");
@@ -54,8 +69,9 @@ export default function App() {
         if (!cancelled) setSprites(tileSprites);
 
         // 3. Load map list
-        const meta = await loadMapList(setStatus);
+        const { meta, rawContent: rawMl } = await loadMapList(setStatus);
         if (cancelled) return;
+        if (!cancelled) setRawMapList(rawMl);
 
         // 4. Try to load each map to determine availability
         setStatus("Checking map availability...");
@@ -89,7 +105,10 @@ export default function App() {
         const data = await loadAndSelectMap(startMap, setStatus);
         if (cancelled || !data) return;
 
-        setCurrentMap(startMap);
+        // Only switch to map view if user previously visited a map
+        if (hadVisited) {
+          setCurrentFile({ type: "map", id: startMap });
+        }
         setMapData(data);
 
         // 7. Load mob sprites in background
@@ -118,48 +137,162 @@ export default function App() {
     return () => { cancelled = true; };
   }, [loadAndSelectMap]);
 
-  const handleMapChange = useCallback(async (mapId) => {
-    if (mapId === currentMap) return;
-    const data = await loadAndSelectMap(mapId);
-    if (!data) return;
-    setCurrentMap(mapId);
-    setMapData(data);
-  }, [currentMap, loadAndSelectMap]);
+  const handleFileSelect = useCallback(async (file) => {
+    if (file.type === "map") {
+      if (currentFile?.type === "map" && file.id === currentFile.id) return;
+      const data = await loadAndSelectMap(file.id);
+      if (!data) return;
+      setMapData(data);
+      setCurrentFile(file);
+    } else {
+      setCurrentFile(file);
+    }
+  }, [currentFile, loadAndSelectMap]);
+
+  const handleResizeStart = useCallback((e) => {
+    e.preventDefault();
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMouseMove = (ev) => {
+      setPanelWidth(Math.max(120, Math.min(600, ev.clientX)));
+    };
+    const onMouseUp = (ev) => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      const finalWidth = Math.max(120, Math.min(600, ev.clientX));
+      localStorage.setItem("panel_width", finalWidth.toString());
+      removeEventListener("mousemove", onMouseMove);
+      removeEventListener("mouseup", onMouseUp);
+    };
+    addEventListener("mousemove", onMouseMove);
+    addEventListener("mouseup", onMouseUp);
+  }, []);
 
   return (
-    <>
-      {mapData && sprites && (
-        <MapCanvas
-          mapData={mapData}
-          sprites={sprites}
-          mobSprites={mobSpritesState}
-        />
-      )}
+    <div style={{ display: "flex", width: "100%", height: "100%" }}>
       {!loading && (
-        <MapSelect
-          maps={mapList}
-          currentMap={currentMap}
-          onMapChange={handleMapChange}
-        />
+        <>
+          <FileBrowser
+            mapList={mapList}
+            tileFiles={tileFiles}
+            currentFile={currentFile}
+            onFileSelect={handleFileSelect}
+            width={panelWidth}
+            isMobileOpen={sidebarOpen}
+            onMobileClose={() => setSidebarOpen(false)}
+          />
+          <div
+            className="resize-handle"
+            onMouseDown={handleResizeStart}
+            style={{
+              width: 4,
+              cursor: "col-resize",
+              background: "#2d2d2d",
+              flexShrink: 0,
+              zIndex: 5,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#007acc")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#2d2d2d")}
+          />
+        </>
       )}
-      {loading && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            color: "#fff",
-            fontSize: "36px",
-            fontFamily: "Game, Ubuntu, sans-serif",
-            fontWeight: "bold",
-            textAlign: "center",
-            zIndex: 100,
-          }}
-        >
-          {status}
-        </div>
-      )}
-    </>
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {/* Mobile hamburger */}
+        {!loading && (
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              display: "none",
+              position: "absolute",
+              top: 10,
+              left: 10,
+              zIndex: 15,
+              background: "#2a2a2a",
+              color: "#ccc",
+              border: "1px solid #444",
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontSize: 18,
+              cursor: "pointer",
+              fontFamily: "Game, Ubuntu, sans-serif",
+              lineHeight: 1,
+            }}
+          >
+            ☰
+          </button>
+        )}
+
+        {currentFile?.type === "readme" && <ReadmeViewer />}
+        {currentFile?.type === "map" && mapData && sprites && (
+          <MapCanvas
+            mapData={mapData}
+            sprites={sprites}
+            mobSprites={mobSpritesState}
+          />
+        )}
+        {currentFile?.type === "tile" && sprites && (
+          <TileViewer tileId={currentFile.id} sprites={sprites} />
+        )}
+        {currentFile?.type === "tileset" && (
+          <div style={{ color: "#888", padding: 40, fontSize: 18, fontFamily: "Game, Ubuntu, sans-serif", height: "100%", overflow: "auto" }}>
+            <h2 style={{ color: "#ccc", marginBottom: 16 }}>tileset.tsj</h2>
+            <p>Tileset definition file containing {tileFiles.length} tile references.</p>
+            <p style={{ marginTop: 8, fontSize: 14, marginBottom: 20 }}>Open individual tiles from the tiles/ folder.</p>
+            <pre style={{
+              background: "#111",
+              border: "1px solid #333",
+              borderRadius: 6,
+              padding: 16,
+              fontSize: 12,
+              fontFamily: "GameMono, monospace",
+              color: "#9cdcfe",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              maxHeight: "calc(100vh - 220px)",
+              overflow: "auto",
+            }}>{rawTileset}</pre>
+          </div>
+        )}
+        {currentFile?.type === "maplist" && (
+          <div style={{ color: "#888", padding: 40, fontSize: 18, fontFamily: "Game, Ubuntu, sans-serif", height: "100%", overflow: "auto" }}>
+            <h2 style={{ color: "#ccc", marginBottom: 16 }}>maps.txt</h2>
+            <p>{mapList.filter((m) => !m.disabled).length} maps available.</p>
+            <p style={{ marginTop: 8, fontSize: 14, marginBottom: 20 }}>Open individual maps from the maps/ folder.</p>
+            <pre style={{
+              background: "#111",
+              border: "1px solid #333",
+              borderRadius: 6,
+              padding: 16,
+              fontSize: 12,
+              fontFamily: "GameMono, monospace",
+              color: "#9cdcfe",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              maxHeight: "calc(100vh - 220px)",
+              overflow: "auto",
+            }}>{rawMapList}</pre>
+          </div>
+        )}
+        {loading && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "#fff",
+              fontSize: "36px",
+              fontFamily: "Game, Ubuntu, sans-serif",
+              fontWeight: "bold",
+              textAlign: "center",
+              zIndex: 100,
+            }}
+          >
+            {status}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

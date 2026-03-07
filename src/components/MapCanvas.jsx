@@ -8,6 +8,7 @@ import { mobmap } from "../lib/mobs.js";
 
 export default function MapCanvas({ mapData, sprites, mobSprites }) {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const stateRef = useRef(null);
 
   // Initialize once
@@ -45,7 +46,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !mapData || !sprites) return;
+    const container = containerRef.current;
+    if (!canvas || !container || !mapData || !sprites) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -54,8 +56,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
     // Build renderer if needed
     if (!st.renderer) {
-      const w = innerWidth * devicePixelRatio;
-      const h = innerHeight * devicePixelRatio;
+      const rect = container.getBoundingClientRect();
+      const w = rect.width * devicePixelRatio;
+      const h = rect.height * devicePixelRatio;
       st.renderer = new TileRenderer(w, h, sprites);
     }
 
@@ -68,8 +71,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
     const uctx = uiCanvas.getContext("2d");
 
     const resize = () => {
-      const w = innerWidth * devicePixelRatio;
-      const h = innerHeight * devicePixelRatio;
+      const rect = container.getBoundingClientRect();
+      const w = rect.width * devicePixelRatio;
+      const h = rect.height * devicePixelRatio;
       canvas.width = w;
       canvas.height = h;
       overlay.width = w;
@@ -182,9 +186,12 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       clampViewerCenter();
     };
 
+    const canvasOffset = () => canvas.getBoundingClientRect();
+
     const onMouseMove = (e) => {
-      const x = e.clientX * devicePixelRatio;
-      const y = e.clientY * devicePixelRatio;
+      const r = canvasOffset();
+      const x = (e.clientX - r.left) * devicePixelRatio;
+      const y = (e.clientY - r.top) * devicePixelRatio;
       if (st.grab) {
         st.camera.x += (st.cursorX - x) / st.camera.fovR;
         st.camera.y += (st.cursorY - y) / st.camera.fovR;
@@ -196,6 +203,10 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
     const onMouseDown = (e) => {
       if (e.button === 0) st.grab = true;
+      if (e.button === 1) {
+        e.preventDefault();
+        st.camera.fov = 0.125;
+      }
     };
     const onMouseUp = (e) => {
       if (e.button === 0) st.grab = false;
@@ -204,8 +215,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
     const onTouchStart = (e) => {
       const t = e.touches[0];
       if (!t) return;
-      st.cursorX = t.clientX * devicePixelRatio;
-      st.cursorY = t.clientY * devicePixelRatio;
+      const r = canvasOffset();
+      st.cursorX = (t.clientX - r.left) * devicePixelRatio;
+      st.cursorY = (t.clientY - r.top) * devicePixelRatio;
       st.grab = true;
     };
     const onTouchEnd = () => {
@@ -215,8 +227,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
     const onTouchMove = (e) => {
       const t = e.changedTouches[0];
       if (!t) return;
-      const x = t.clientX * devicePixelRatio;
-      const y = t.clientY * devicePixelRatio;
+      const r = canvasOffset();
+      const x = (t.clientX - r.left) * devicePixelRatio;
+      const y = (t.clientY - r.top) * devicePixelRatio;
 
       if (e.touches.length === 2) {
         const a = e.touches[0];
@@ -250,14 +263,15 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
     const onContextMenu = (e) => e.preventDefault();
 
-    addEventListener("resize", onResize);
+    const observer = new ResizeObserver(onResize);
+    observer.observe(container);
     addEventListener("mousemove", onMouseMove);
-    addEventListener("mousedown", onMouseDown);
     addEventListener("mouseup", onMouseUp);
-    addEventListener("touchstart", onTouchStart);
-    addEventListener("touchend", onTouchEnd);
-    addEventListener("touchmove", onTouchMove);
-    addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("mousedown", onMouseDown);
+    canvas.addEventListener("touchstart", onTouchStart);
+    canvas.addEventListener("touchend", onTouchEnd);
+    canvas.addEventListener("touchmove", onTouchMove);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("contextmenu", onContextMenu);
 
     // --- Render loop ---
@@ -475,30 +489,32 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
     return () => {
       cancelAnimationFrame(st.animId);
-      removeEventListener("resize", onResize);
+      observer.disconnect();
       removeEventListener("mousemove", onMouseMove);
-      removeEventListener("mousedown", onMouseDown);
       removeEventListener("mouseup", onMouseUp);
-      removeEventListener("touchstart", onTouchStart);
-      removeEventListener("touchend", onTouchEnd);
-      removeEventListener("touchmove", onTouchMove);
-      removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("mousedown", onMouseDown);
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", onContextMenu);
     };
   }, [mapData, sprites, mobSprites, initState]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        touchAction: "none",
-        background: "transparent",
-      }}
-    />
+    <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          touchAction: "none",
+          background: "transparent",
+        }}
+      />
+    </div>
   );
 }

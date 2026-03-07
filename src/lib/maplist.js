@@ -65,7 +65,7 @@ export const loadMapList = async (onStatus) => {
   meta.sort(compareMeta);
 
   onStatus?.(`Loaded map list (${meta.length} maps).`);
-  return meta;
+  return { meta, rawContent: content };
 };
 
 export { toMapName, compareMeta };
