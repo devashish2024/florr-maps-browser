@@ -12,7 +12,7 @@ import "./App.css";
 
 const SPECIAL_IDS = new Set([93, 115]);
 
-const MOB_SVG_BASE = "https://florr.io/static/mobs";
+const MOB_SVG_BASE = "https://florr.io/mobs";
 
 export default function App() {
   const [loading, setLoading] = useState(true);

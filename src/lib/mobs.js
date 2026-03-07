@@ -19,6 +19,8 @@ export const mobmap = new Map([
   [70, "mecha_flower"], [71, "wasp_mecha"], [72, "spider_mecha"],
   [73, "leafbug_shiny"], [74, "crab_mecha"], [76, "barrel"],
   [77, "beetle_mummy"], [78, "beetle_pharaoh"], [79, "tomb"],
+  [80, "silverfish"], [81, "garbage"], [82, "ant_soldier_diver"],
+  [83, "ghost"]
 ]);
 
 export const revmap = new Map();
