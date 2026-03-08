@@ -7,7 +7,7 @@ const MAP_ORDER = [
   "Garden", "Desert", "Ocean", "Jungle", "Ant Hell", "Sewers", "Hel",
   "Factory", "Training Grounds", "Crystal Room", "Worm", "Ant Hole",
   "Rift: Garden", "Rift: Ant Hell", "Rift: Factory", "Rift: Hel",
-  "Rift: Ocean", "Rift: Victory", "Pyramid",
+  "Rift: Ocean", "Rift: Sewers", "Rift: Victory", "Pyramid",
 ];
 const MAP_ORDER_INDEX = new Map(MAP_ORDER.map((name, i) => [name, i]));
 
@@ -23,6 +23,8 @@ const toMapName = (id) => {
   return normalize(toTitle(id));
 };
 
+const RIFT_ORDER_START = MAP_ORDER.findIndex((n) => n.startsWith("Rift:"));
+
 const getOrderKey = (name) => {
   if (name.startsWith("Ant Hole ")) {
     const base = MAP_ORDER_INDEX.get("Ant Hole") ?? 1000;
@@ -32,6 +34,8 @@ const getOrderKey = (name) => {
   if (name === "Pyramid") return 9000 * 100;
   const known = MAP_ORDER_INDEX.get(name);
   if (known !== undefined) return known * 100;
+  // Unknown Rift maps sort near the other Rift maps
+  if (name.startsWith("Rift: ") && RIFT_ORDER_START >= 0) return (RIFT_ORDER_START + MAP_ORDER.length) * 100;
   return 8000 * 100;
 };
 
@@ -57,9 +61,21 @@ export const loadMapList = async (onStatus) => {
 
   ids.add(PYRAMID_MAP_ID);
 
+  // Auto-discover BR (Rift) variants for every base map
+  const brCandidates = new Set();
+  for (const id of ids) {
+    if (!id.startsWith("br/") && id !== PYRAMID_MAP_ID) {
+      const brId = `br/${id}`;
+      if (!ids.has(brId)) brCandidates.add(brId);
+    }
+  }
+
   const meta = [];
   for (const id of ids) {
     meta.push({ id, name: toMapName(id), ok: false, fetched: false });
+  }
+  for (const id of brCandidates) {
+    meta.push({ id, name: toMapName(id), ok: false, fetched: false, candidate: true });
   }
 
   meta.sort(compareMeta);

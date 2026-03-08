@@ -97,7 +97,9 @@ export default function App() {
           })
         );
         if (cancelled) return;
-        const checkedMeta = results.map((r, i) => r.status === "fulfilled" ? r.value : { ...meta[i], ok: false, disabled: true, fetched: true });
+        const checkedMeta = results
+          .map((r, i) => r.status === "fulfilled" ? r.value : { ...meta[i], ok: false, disabled: true, fetched: true })
+          .filter((m) => !m.candidate || m.ok); // Hide failed auto-discovered candidates
         setMapList(checkedMeta);
 
         // 5. Determine start map
@@ -195,7 +197,9 @@ export default function App() {
         return { ...m, ok, disabled: !ok, fetched: true };
       })
     );
-    const updated = results.map((r, i) => r.status === "fulfilled" ? r.value : { ...mapList[i], ok: false, disabled: true, fetched: true });
+    const updated = results
+      .map((r, i) => r.status === "fulfilled" ? r.value : { ...mapList[i], ok: false, disabled: true, fetched: true })
+      .filter((m) => !m.candidate || m.ok); // Hide failed auto-discovered candidates
     setMapList(updated);
     setRefreshing(false);
   }, [mapList]);
