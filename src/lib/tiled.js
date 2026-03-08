@@ -74,8 +74,11 @@ export const parseMap = (mapId) => {
           .filter((x) => x.trim())
           .map((x) => {
             const parts = x.replace(";", "").split(":");
-            return { id: revmap.get(parts[0]) ?? -1, chance: parseFloat(parts[1]) || 0 };
-          }) ?? [];
+            const id = revmap.get(parts[0]) ?? -1;
+            if (id === -1) return null;
+            return { id, chance: parseFloat(parts[1]) || 0 };
+          })
+          .filter((mob) => mob !== null) ?? [];
 
         const points = new Path2D();
         const color = colorFromDiff(difficulty);
