@@ -84,4 +84,35 @@ export const loadMapList = async (onStatus) => {
   return { meta, rawContent: content, lastFetched: lastFetched || new Date().toISOString() };
 };
 
+export const loadArchivedMapList = async (onStatus) => {
+  onStatus?.("Loading archived map list...");
+
+  const ARCHIVED_IDS = [
+    "a", "battle_royale", "pvp_1", "pvp_2", "pvp_3", "sewers_old"
+  ];
+
+  try {
+    const response = await fetch("/archived_maps/");
+    if (response.ok) {
+      const html = await response.text();
+      const ids = [];
+      const re = /href="([^"]+\.tmj)"/g;
+      let m;
+      while ((m = re.exec(html)) !== null) {
+        ids.push(m[1].replace(/\.tmj$/, ""));
+      }
+      if (ids.length > 0) {
+        onStatus?.(`Found ${ids.length} archived maps.`);
+        return ids.map((id) => ({ id, name: toMapName(id) }));
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to list archived maps directory:", err);
+  }
+
+  // Fallback: use known list
+  onStatus?.(`Using ${ARCHIVED_IDS.length} known archived maps.`);
+  return ARCHIVED_IDS.map((id) => ({ id, name: toMapName(id) }));
+};
+
 export { toMapName, compareMeta };

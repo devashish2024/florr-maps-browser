@@ -6,12 +6,14 @@ const FILE_URLS = {
   tileset: "https://florr.io/static/tiles/tileset.tsj",
   maplist: "https://florr.io/static/i18n/en_US/maps.txt",
   map: (id) => `https://florr.io/static/maps/${id}.tmj`,
+  archived_map: (id) => `/archived_maps/${id}.tmj`,
   tile: (name) => `https://florr.io/static/tiles/${name}`,
 };
 
 function getFileUrl(file) {
   if (!file) return null;
   if (file.type === "map") return FILE_URLS.map(file.id);
+  if (file.type === "archived_map") return FILE_URLS.archived_map(file.id);
   if (file.type === "tile") return FILE_URLS.tile(file.tileName);
   return FILE_URLS[file.type] || null;
 }
@@ -122,8 +124,9 @@ function FileItem({ name, label, icon = "📄", indent = 0, active, disabled, on
   );
 }
 
-export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSelect, width, isMobileOpen, onMobileClose, loading }) {
+export default function FileBrowser({ mapList, archivedMapList, tileFiles, currentFile, onFileSelect, width, isMobileOpen, onMobileClose, loading }) {
   const [mapsExpanded, setMapsExpanded] = useState(true);
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [tilesExpanded, setTilesExpanded] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
 
@@ -235,29 +238,15 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
             onClick={() => handleSelect({ type: "readme" })}
             onContextMenu={(e) => openContextMenu(e, { type: "readme" })}
           />
-          {loading ? (
+          <FileItem
+            icon="❓"
+            name="HELP.md"
+            active={currentFile?.type === "help"}
+            onClick={() => handleSelect({ type: "help" })}
+            onContextMenu={(e) => openContextMenu(e, { type: "help" })}
+          />
+          {!loading && (
             <>
-              <FileItem
-                icon="❓"
-                name="HELP.md"
-                active={currentFile?.type === "help"}
-                onClick={() => handleSelect({ type: "help" })}
-                onContextMenu={(e) => openContextMenu(e, { type: "help" })}
-              />
-              <div style={{ padding: "16px 12px", display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 13 }}>
-                <span className="skeleton-spinner" />
-                <span>Loading…</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <FileItem
-                icon="❓"
-                name="HELP.md"
-                active={currentFile?.type === "help"}
-                onClick={() => handleSelect({ type: "help" })}
-                onContextMenu={(e) => openContextMenu(e, { type: "help" })}
-              />
               <FileItem
                 icon="📋"
                 name="tileset.tsj"
@@ -272,8 +261,12 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
                 onClick={() => handleSelect({ type: "maplist" })}
                 onContextMenu={(e) => openContextMenu(e, { type: "maplist" })}
               />
+            </>
+          )}
 
-              {/* maps/ folder */}
+          {/* maps/ folder */}
+          {!loading && (
+            <>
               <FolderItem
                 name="maps"
                 expanded={mapsExpanded}
@@ -293,8 +286,12 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
                     onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
                   />
                 ))}
+            </>
+          )}
 
-              {/* tiles/ folder */}
+          {/* tiles/ folder */}
+          {!loading && (
+            <>
               <FolderItem
                 name="tiles"
                 expanded={tilesExpanded}
@@ -313,6 +310,38 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
                   />
                 ))}
             </>
+          )}
+
+          {/* archived_maps/ folder - always visible */}
+          {archivedMapList.length > 0 && (
+            <>
+              <FolderItem
+                name="archived_maps"
+                expanded={archivedExpanded}
+                onToggle={() => setArchivedExpanded(!archivedExpanded)}
+              />
+              {archivedExpanded &&
+                archivedMapList.map((m) => (
+                  <FileItem
+                    key={m.id}
+                    icon={m.disabled ? "⚠️" : "🗺️"}
+                    name={`${m.id}.tmj`}
+                    label={m.disabled ? `${m.name} (error)` : m.name}
+                    indent={1}
+                    active={currentFile?.type === "archived_map" && currentFile?.id === m.id}
+                    disabled={m.disabled}
+                    onClick={() => handleSelect({ type: "archived_map", id: m.id })}
+                    onContextMenu={(e) => openContextMenu(e, { type: "archived_map", id: m.id })}
+                  />
+                ))}
+            </>
+          )}
+
+          {loading && (
+            <div style={{ padding: "16px 12px", display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 13 }}>
+              <span className="skeleton-spinner" />
+              <span>Loading…</span>
+            </div>
           )}
         </div>
         <a

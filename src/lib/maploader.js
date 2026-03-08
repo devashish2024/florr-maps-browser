@@ -47,6 +47,24 @@ export const refreshMap = async (id) => {
   }
 };
 
+export const ensureArchivedMapLoaded = async (id, onStatus) => {
+  const cacheKey = `archived/${id}`;
+  if (mapCache.has(cacheKey)) return true;
+
+  onStatus?.(`Loading archived map ${id}...`);
+
+  try {
+    const response = await fetch(`/archived_maps/${id}.tmj`);
+    if (!response.ok) return false;
+    const raw = await response.text();
+    mapCache.set(cacheKey, raw);
+    mapLastFetched.set(cacheKey, new Date().toISOString());
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const getMapRaw = (id) => mapCache.get(id);
 export const getMapLastFetched = (id) => mapLastFetched.get(id) || null;
 export const getAllMapLastFetched = () => Object.fromEntries(mapLastFetched);

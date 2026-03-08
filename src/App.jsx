@@ -6,8 +6,8 @@ import ReadmeViewer from "./components/ReadmeViewer.jsx";
 import MapListViewer from "./components/MapListViewer.jsx";
 import TilesetViewer from "./components/TilesetViewer.jsx";
 import { loadTiles } from "./lib/tileset.js";
-import { loadMapList } from "./lib/maplist.js";
-import { ensureMapLoaded, refreshMap } from "./lib/maploader.js";
+import { loadMapList, loadArchivedMapList } from "./lib/maplist.js";
+import { ensureMapLoaded, ensureArchivedMapLoaded, refreshMap } from "./lib/maploader.js";
 import { parseMap } from "./lib/tiled.js";
 import { svgToCanvas } from "./lib/svgrender.js";
 import { fetchText } from "./lib/proxy.js";
@@ -29,6 +29,7 @@ export default function App() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed?.type === "map" && parsed.id) return parsed;
+        if (parsed?.type === "archived_map" && parsed.id) return parsed;
         if (parsed?.type === "readme") return parsed;
       }
     } catch { /* ignore */ }
@@ -48,12 +49,16 @@ export default function App() {
     return parseInt(localStorage.getItem("panel_width")) || 240;
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [archivedMapList, setArchivedMapList] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadAndSelectMap = useCallback(async (mapId, onStatus) => {
-    const ok = await ensureMapLoaded(mapId, onStatus);
+  const loadAndSelectMap = useCallback(async (mapId, onStatus, archived = false) => {
+    const ok = archived
+      ? await ensureArchivedMapLoaded(mapId, onStatus)
+      : await ensureMapLoaded(mapId, onStatus);
     if (!ok) return null;
-    const data = parseMap(mapId);
+    const cacheKey = archived ? `archived/${mapId}` : mapId;
+    const data = parseMap(cacheKey);
     return data;
   }, []);
 
@@ -152,6 +157,20 @@ export default function App() {
         }
         if (!cancelled) setMobSpritesState(mSprites);
 
+        // 8. Load archived map list
+        setStatus("Loading archived maps...");
+        const archivedMeta = await loadArchivedMapList(setStatus);
+        const archivedResults = await Promise.allSettled(
+          archivedMeta.map(async (m) => {
+            const ok = await ensureArchivedMapLoaded(m.id);
+            return { ...m, ok, disabled: !ok, fetched: true };
+          })
+        );
+        if (cancelled) return;
+        const checkedArchived = archivedResults
+          .map((r, i) => r.status === "fulfilled" ? r.value : { ...archivedMeta[i], ok: false, disabled: true, fetched: true });
+        setArchivedMapList(checkedArchived);
+
         setStatus("Done");
         setLoading(false);
       } catch (err) {
@@ -165,15 +184,16 @@ export default function App() {
   }, [loadAndSelectMap]);
 
   const saveVisited = (file) => {
-    if (file.type === "map" || file.type === "readme") {
+    if (file.type === "map" || file.type === "archived_map" || file.type === "readme") {
       localStorage.setItem("visited_file", JSON.stringify(file));
     }
   };
 
   const handleFileSelect = useCallback(async (file) => {
-    if (file.type === "map") {
-      if (currentFile?.type === "map" && file.id === currentFile.id) return;
-      const data = await loadAndSelectMap(file.id);
+    if (file.type === "map" || file.type === "archived_map") {
+      if (currentFile?.type === file.type && currentFile?.id === file.id) return;
+      const archived = file.type === "archived_map";
+      const data = await loadAndSelectMap(file.id, undefined, archived);
       if (!data) return;
       setMapData(data);
       setCurrentFile(file);
@@ -243,6 +263,7 @@ export default function App() {
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
       <FileBrowser
         mapList={mapList}
+        archivedMapList={archivedMapList}
         tileFiles={tileFiles}
         currentFile={loading && currentFile?.type !== "help" ? { type: "readme" } : currentFile}
         onFileSelect={handleFileSelect}
@@ -291,7 +312,7 @@ export default function App() {
 
         {(loading && currentFile?.type !== "help" || !loading && currentFile?.type === "readme") && <ReadmeViewer src="/README.md" />}
         {(currentFile?.type === "help") && <ReadmeViewer src="/HELP.md" />}
-        {!loading && currentFile?.type === "map" && mapData && sprites && (
+        {!loading && (currentFile?.type === "map" || currentFile?.type === "archived_map") && mapData && sprites && (
           <MapCanvas
             mapData={mapData}
             sprites={sprites}
