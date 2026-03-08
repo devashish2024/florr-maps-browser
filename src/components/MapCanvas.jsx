@@ -473,7 +473,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, warpSprite }) 
         const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
 
         octx.globalAlpha = 1;
-        if (warpSprite) {
+        if (warp.warpType === "warp" && warpSprite) {
           octx.drawImage(warpSprite, -warpRadius, -warpRadius, warpRadius * 2, warpRadius * 2);
         } else {
           octx.strokeStyle = warp.warpType === "warp" ? "#000000" : "#ffffff";
