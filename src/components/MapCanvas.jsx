@@ -429,7 +429,11 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay:" + spawner.extraSpawnDelay, "#facbcb"]);
           if (!isNaN(spawner.forceRarity)) contents.push(["force_rarity:" + spawner.forceRarity, "#facbcb"]);
           if (!isNaN(spawner.team)) contents.push(["team:" + spawner.team, "#facbcb"]);
-          newTooltips.set(spawner.id, { contents, mobs: spawner.mobs });
+          const totalWeight = spawner.mobs.reduce((a, m) => a + m.chance, 0);
+          const mobsWithFreq = totalWeight > 0
+            ? spawner.mobs.map((m) => ({ ...m, chance: Math.round((m.chance / totalWeight) * 100) + "%" }))
+            : spawner.mobs;
+          newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq });
         }
       }
 
