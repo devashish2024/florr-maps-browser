@@ -98,7 +98,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
     const minFov = () => {
       const fitW = st.viewW / (1.2 * mapData.width);
       const fitH = st.viewH / (1.2 * mapData.height);
-      return Math.max(0.0001, fitW, fitH);
+      return Math.max(0.0001, fitW, fitH) * 0.75;
     };
 
     const clampFov = () => {
