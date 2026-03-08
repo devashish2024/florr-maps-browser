@@ -15,7 +15,7 @@ function timeAgo(isoString) {
   return `${days} day${days !== 1 ? "s" : ""} ago`;
 }
 
-export default function MapListViewer({ mapList, onFileSelect, onRefreshAllMaps }) {
+export default function MapListViewer({ mapList, mapListLastFetched, onFileSelect, onRefreshAllMaps }) {
   const [, setTick] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -40,6 +40,7 @@ export default function MapListViewer({ mapList, onFileSelect, onRefreshAllMaps 
         <h2 style={{ fontSize: 22, marginBottom: 8 }}>maps.txt</h2>
         <p style={{ color: "#888", fontSize: 14, marginBottom: 20 }}>
           {available.length} maps available{unavailable.length > 0 ? `, ${unavailable.length} unavailable` : ""}.
+          {mapListLastFetched && ` Last fetched ${timeAgo(mapListLastFetched)}.`}
         </p>
 
         <button

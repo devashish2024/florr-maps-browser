@@ -21,7 +21,7 @@ export const ensureMapLoaded = async (id, onStatus) => {
     const raw = await response.text();
     mapCache.set(id, raw);
     const lf = response.headers.get("X-Last-Fetched");
-    if (lf) mapLastFetched.set(id, lf);
+    mapLastFetched.set(id, lf || new Date().toISOString());
     return true;
   } catch {
     return false;
@@ -40,7 +40,7 @@ export const refreshMap = async (id) => {
     const raw = await response.text();
     mapCache.set(id, raw);
     const lf = response.headers.get("X-Last-Fetched");
-    if (lf) mapLastFetched.set(id, lf);
+    mapLastFetched.set(id, lf || new Date().toISOString());
     return true;
   } catch {
     return false;

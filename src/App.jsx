@@ -43,6 +43,7 @@ export default function App() {
   const [tileFiles, setTileFiles] = useState([]);
   const [rawTileset, setRawTileset] = useState("");
   const [rawMapList, setRawMapList] = useState("");
+  const [mapListLastFetched, setMapListLastFetched] = useState(null);
   const [panelWidth, setPanelWidth] = useState(() => {
     return parseInt(localStorage.getItem("panel_width")) || 240;
   });
@@ -80,9 +81,12 @@ export default function App() {
         if (!cancelled) setSprites(tileSprites);
 
         // 3. Load map list
-        const { meta, rawContent: rawMl } = await loadMapList(setStatus);
+        const { meta, rawContent: rawMl, lastFetched: mlLf } = await loadMapList(setStatus);
         if (cancelled) return;
-        if (!cancelled) setRawMapList(rawMl);
+        if (!cancelled) {
+          setRawMapList(rawMl);
+          setMapListLastFetched(mlLf);
+        }
 
         // 4. Preload all maps in parallel
         setStatus("Loading all maps...");
@@ -303,6 +307,7 @@ export default function App() {
         {!loading && currentFile?.type === "maplist" && (
           <MapListViewer
             mapList={mapList}
+            mapListLastFetched={mapListLastFetched}
             onFileSelect={handleFileSelect}
             onRefreshAllMaps={handleRefreshAllMaps}
           />

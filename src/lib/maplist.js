@@ -1,4 +1,4 @@
-import { fetchText } from "./proxy.js";
+import { fetchTextWithMeta } from "./proxy.js";
 
 const MAPS_LIST_URL = "https://florr.io/static/i18n/en_US/maps.txt";
 const PYRAMID_MAP_ID = "pyramid";
@@ -45,7 +45,7 @@ const compareMeta = (a, b) => {
 export const loadMapList = async (onStatus) => {
   onStatus?.("Loading map list...");
 
-  const content = await fetchText(MAPS_LIST_URL);
+  const { text: content, lastFetched } = await fetchTextWithMeta(MAPS_LIST_URL);
   const ids = new Set();
 
   for (const line of content.split(/\r?\n/)) {
@@ -65,7 +65,7 @@ export const loadMapList = async (onStatus) => {
   meta.sort(compareMeta);
 
   onStatus?.(`Loaded map list (${meta.length} maps).`);
-  return { meta, rawContent: content };
+  return { meta, rawContent: content, lastFetched: lastFetched || new Date().toISOString() };
 };
 
 export { toMapName, compareMeta };
