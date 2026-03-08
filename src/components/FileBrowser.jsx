@@ -251,70 +251,92 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
             </>
           ) : (
             <>
-          <FileItem
-            icon="❓"
-            name="HELP.md"
-            active={currentFile?.type === "help"}
-            onClick={() => handleSelect({ type: "help" })}
-            onContextMenu={(e) => openContextMenu(e, { type: "help" })}
-          />
-          <FileItem
-            icon="📋"
-            name="tileset.tsj"
-            active={currentFile?.type === "tileset"}
-            onClick={() => handleSelect({ type: "tileset" })}
-            onContextMenu={(e) => openContextMenu(e, { type: "tileset" })}
-          />
-          <FileItem
-            icon="📋"
-            name="maps.txt"
-            active={currentFile?.type === "maplist"}
-            onClick={() => handleSelect({ type: "maplist" })}
-            onContextMenu={(e) => openContextMenu(e, { type: "maplist" })}
-          />
-
-          {/* maps/ folder */}
-          <FolderItem
-            name="maps"
-            expanded={mapsExpanded}
-            onToggle={() => setMapsExpanded(!mapsExpanded)}
-          />
-          {mapsExpanded &&
-            sortedMaps.map((m) => (
               <FileItem
-                key={m.id}
-                icon={m.disabled ? "⚠️" : "🗺️"}
-                name={`${m.id}.tmj`}
-                label={m.disabled ? `${m.name} (error)` : m.name}
-                indent={1}
-                active={currentFile?.type === "map" && currentFile?.id === m.id}
-                disabled={m.disabled}
-                onClick={() => handleSelect({ type: "map", id: m.id })}
-                onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
+                icon="❓"
+                name="HELP.md"
+                active={currentFile?.type === "help"}
+                onClick={() => handleSelect({ type: "help" })}
+                onContextMenu={(e) => openContextMenu(e, { type: "help" })}
               />
-            ))}
-
-          {/* tiles/ folder */}
-          <FolderItem
-            name="tiles"
-            expanded={tilesExpanded}
-            onToggle={() => setTilesExpanded(!tilesExpanded)}
-          />
-          {tilesExpanded &&
-            tileFiles.map((t) => (
               <FileItem
-                key={t.id}
-                icon="🖼️"
-                name={t.name}
-                indent={1}
-                active={currentFile?.type === "tile" && currentFile?.id === t.id}
-                onClick={() => handleSelect({ type: "tile", id: t.id })}
-                onContextMenu={(e) => openContextMenu(e, { type: "tile", tileName: t.name })}
+                icon="📋"
+                name="tileset.tsj"
+                active={currentFile?.type === "tileset"}
+                onClick={() => handleSelect({ type: "tileset" })}
+                onContextMenu={(e) => openContextMenu(e, { type: "tileset" })}
               />
-            ))}
+              <FileItem
+                icon="📋"
+                name="maps.txt"
+                active={currentFile?.type === "maplist"}
+                onClick={() => handleSelect({ type: "maplist" })}
+                onContextMenu={(e) => openContextMenu(e, { type: "maplist" })}
+              />
+
+              {/* maps/ folder */}
+              <FolderItem
+                name="maps"
+                expanded={mapsExpanded}
+                onToggle={() => setMapsExpanded(!mapsExpanded)}
+              />
+              {mapsExpanded &&
+                sortedMaps.map((m) => (
+                  <FileItem
+                    key={m.id}
+                    icon={m.disabled ? "⚠️" : "🗺️"}
+                    name={`${m.id}.tmj`}
+                    label={m.disabled ? `${m.name} (error)` : m.name}
+                    indent={1}
+                    active={currentFile?.type === "map" && currentFile?.id === m.id}
+                    disabled={m.disabled}
+                    onClick={() => handleSelect({ type: "map", id: m.id })}
+                    onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
+                  />
+                ))}
+
+              {/* tiles/ folder */}
+              <FolderItem
+                name="tiles"
+                expanded={tilesExpanded}
+                onToggle={() => setTilesExpanded(!tilesExpanded)}
+              />
+              {tilesExpanded &&
+                tileFiles.map((t) => (
+                  <FileItem
+                    key={t.id}
+                    icon="🖼️"
+                    name={t.name}
+                    indent={1}
+                    active={currentFile?.type === "tile" && currentFile?.id === t.id}
+                    onClick={() => handleSelect({ type: "tile", id: t.id })}
+                    onContextMenu={(e) => openContextMenu(e, { type: "tile", tileName: t.name })}
+                  />
+                ))}
             </>
           )}
         </div>
+        <a
+          href="https://mobs.ashish.top"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 12px",
+            borderTop: "1px solid #333",
+            color: "#FDDE54",
+            fontSize: 13,
+            textDecoration: "none",
+            fontFamily: "'Game', 'Ubuntu', sans-serif",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2d2e")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+        >
+          <img src="https://mobs.ashish.top/logo.png" alt="" style={{ width: 16, height: 16 }} />
+          <span>FlorrMobNotify</span>
+        </a>
         <a
           href="https://mobs.ashish.top/discord"
           target="_blank"
@@ -335,7 +357,7 @@ export default function FileBrowser({ mapList, tileFiles, currentFile, onFileSel
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
           <img src="/discord_icon.svg" alt="" style={{ width: 16, height: 16 }} />
-          <span>Join Discord</span>
+          <span>Discord</span>
         </a>
       </div>
       {ctxMenu && (
