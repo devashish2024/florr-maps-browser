@@ -501,103 +501,120 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       uctx.save();
       uctx.scale(st.scale, st.scale);
 
-      const pad = 5;
-      const tipW = 230;
-      const tipH = 360;
-      const rw = 50;
-      const rh = 50;
-      const bgpath = new Path2D();
-      bgpath.roundRect(0, 0, rw, rh, 5);
+      const pad = 8;
+      const cols = 3;
+      const rw = 68;
+      const rh = 68;
+      const lineH = 22;
+      const fontSize = 18;
+      const chanceH = 20; // space below icon for chance label
+      const cellW = rw + pad;
+      const cellH = rh + chanceH + pad;
+      const tipW = cols * cellW + pad * 2; // 3*(68+8)+16 = 244
 
-      const tooltipX = st.cursorRx + -newTooltips.size * tipW * 0.5;
-      const rx = Math.max(pad, Math.min(tooltipX, st.viewW - (tipW + pad) * newTooltips.size));
-      const ry = Math.max(pad, Math.min(st.cursorRy, st.viewH - tipH - pad));
+      const bgpath = new Path2D();
+      bgpath.roundRect(0, 0, rw, rh, 6);
+
+      // Compute dynamic height for each tooltip
+      const getTipHeight = (tooltip) => {
+        const nLines = tooltip.contents.length;
+        const nMobs = tooltip.mobs?.length ?? 0;
+        const nRows = nMobs > 0 ? Math.ceil(nMobs / cols) : 0;
+        return pad + nLines * lineH + (nRows > 0 ? pad + nRows * cellH : 0) + pad;
+      };
+
+      const maxTipH = newTooltips.size > 0
+        ? Math.max(...[...newTooltips.values()].map(getTipHeight))
+        : 0;
+
+      const totalTipW = newTooltips.size * (tipW + pad) - pad;
+      const tooltipX = st.cursorRx - totalTipW * 0.5;
+      const rx = Math.max(pad, Math.min(tooltipX, st.viewW - totalTipW - pad));
+      const ry = Math.max(pad, Math.min(st.cursorRy, st.viewH - maxTipH - pad));
 
       uctx.save();
       uctx.translate(rx, ry);
 
       for (const [, tooltip] of newTooltips) {
+        const tipH = getTipHeight(tooltip);
+        const maxTextW = tipW - pad * 2;
+
         uctx.save();
+
+        // Background
         uctx.fillStyle = "#000";
-        uctx.globalAlpha = 0.2;
+        uctx.globalAlpha = 0.72;
         uctx.beginPath();
         uctx.roundRect(0, 0, tipW, tipH, 10);
         uctx.fill();
-
         uctx.globalAlpha = 1.0;
+
         uctx.fillStyle = "#fff";
         uctx.strokeStyle = "#000";
         uctx.lineWidth = 2;
-        uctx.font = "20px GameMono, monospace";
+        uctx.font = `${fontSize}px GameMono, monospace`;
         uctx.textAlign = "left";
         uctx.textBaseline = "top";
         uctx.translate(pad, pad);
 
+        // Content lines — truncate with ellipsis if too wide
         for (const [text, fill] of tooltip.contents) {
+          uctx.font = `${fontSize}px GameMono, monospace`;
+          let display = text;
+          while (display.length > 4 && uctx.measureText(display).width > maxTextW) {
+            display = display.slice(0, -4) + "\u2026";
+          }
           uctx.fillStyle = fill;
-          uctx.strokeText(text, 0, 0);
-          uctx.fillText(text, 0, 0);
-          uctx.translate(0, 20);
+          uctx.strokeText(display, 0, 0);
+          uctx.fillText(display, 0, 0);
+          uctx.translate(0, lineH);
         }
 
         // Mob icons
         if (tooltip.mobs) {
           const bgColor = tooltip.zoneColor || RarityColor.Common;
-          uctx.lineWidth = rw * 0.15;
           uctx.translate(0, pad);
           let i = 0;
           for (const mob of tooltip.mobs) {
             const sprite = mobSprites?.get(mob.id);
             if (!sprite) {
-              // Fallback: show mob name text
+              // Fallback: mob name text in icon area
               const name = mobmap.get(mob.id);
               if (name) {
                 uctx.save();
                 uctx.fillStyle = "#aaa";
                 uctx.font = "12px GameMono, monospace";
-                uctx.fillText(name, 0, rh * 0.5);
+                uctx.textAlign = "left";
+                uctx.fillText(name, 0, rh * 0.5 - 6);
                 uctx.restore();
               }
-              // Show chance below fallback name
-              if (mob.chance !== undefined) {
-                uctx.save();
-                uctx.fillStyle = "#ffcc00";
-                uctx.strokeStyle = "#000";
-                uctx.lineWidth = 1.5;
-                uctx.font = "bold 11px GameMono, monospace";
-                uctx.textAlign = "center";
-                uctx.strokeText(mob.chance.toString(), rw * 0.5, rh + 12);
-                uctx.fillText(mob.chance.toString(), rw * 0.5, rh + 12);
-                uctx.restore();
-              }
-              uctx.translate(rw + pad, 0);
-              i++;
-              if (i % 4 === 0) uctx.translate(-(rw + pad) * 4, rh + pad + 16);
-              continue;
-            }
-            uctx.save();
-            uctx.fillStyle = bgColor;
-            uctx.strokeStyle = darkened(bgColor.substring(1), 0.2);
-            uctx.fill(bgpath);
-            uctx.clip(bgpath);
-            uctx.drawImage(sprite, 0, 0, rw, rh);
-            uctx.stroke(bgpath);
-            uctx.restore();
-            // Show chance below icon
-            if (mob.chance !== undefined) {
+            } else {
               uctx.save();
-              uctx.fillStyle = "#ffcc00";
-              uctx.strokeStyle = "#000";
-              uctx.lineWidth = 1.5;
-              uctx.font = "bold 11px GameMono, monospace";
-              uctx.textAlign = "center";
-              uctx.strokeText(mob.chance.toString(), rw * 0.5, rh + 12);
-              uctx.fillText(mob.chance.toString(), rw * 0.5, rh + 12);
+              uctx.fillStyle = bgColor;
+              uctx.strokeStyle = darkened(bgColor.substring(1), 0.2);
+              uctx.lineWidth = rw * 0.1;
+              uctx.fill(bgpath);
+              uctx.clip(bgpath);
+              uctx.drawImage(sprite, 0, 0, rw, rh);
+              uctx.stroke(bgpath);
               uctx.restore();
             }
-            uctx.translate(rw + pad, 0);
+            // Chance label below icon
+            if (mob.chance !== undefined) {
+              uctx.save();
+              uctx.fillStyle = "#ffee44";
+              uctx.strokeStyle = "#000";
+              uctx.lineWidth = 2.5;
+              uctx.font = "bold 14px GameMono, monospace";
+              uctx.textAlign = "center";
+              uctx.textBaseline = "top";
+              uctx.strokeText(mob.chance.toString(), rw * 0.5, rh + 3);
+              uctx.fillText(mob.chance.toString(), rw * 0.5, rh + 3);
+              uctx.restore();
+            }
+            uctx.translate(cellW, 0);
             i++;
-            if (i % 4 === 0) uctx.translate(-(rw + pad) * 4, rh + pad + 16);
+            if (i % cols === 0) uctx.translate(-cellW * cols, cellH);
           }
         }
 
