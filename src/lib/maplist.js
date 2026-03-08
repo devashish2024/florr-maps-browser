@@ -12,7 +12,7 @@ const MAP_ORDER = [
 const MAP_ORDER_INDEX = new Map(MAP_ORDER.map((name, i) => [name, i]));
 
 const toMapName = (id) => {
-  const normalize = (name) => name.replace(/\bAnt Hole(\d+)\b/g, "Ant Hole $1");
+  const normalize = (name) => name.replace(/\bAnt Hole(\d+)\b/g, "Termite Mound $1");
 
   const toTitle = (value) =>
     value.replace(/[_-]+/g, " ").split(" ").filter(Boolean)
