@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import JSZip from "jszip";
+import { withFlorProxy } from "../lib/proxy";
 
 const FILE_URLS = {
   readme: null,
@@ -67,10 +69,11 @@ function ContextMenu({ x, y, items, onClose }) {
   );
 }
 
-function FolderItem({ name, expanded, onToggle }) {
+function FolderItem({ name, expanded, onToggle, onContextMenu }) {
   return (
     <div
       onClick={onToggle}
+      onContextMenu={onContextMenu}
       style={{
         display: "flex",
         alignItems: "center",
@@ -141,6 +144,37 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
     onFileSelect(file);
     onMobileClose?.();
   };
+
+  const downloadFolder = useCallback(async (folderName, files) => {
+    const zip = new JSZip();
+    const results = await Promise.allSettled(
+      files.map(async (f) => {
+        const url = withFlorProxy(f.url);
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Failed to fetch ${f.name}`);
+        const data = await resp.arrayBuffer();
+        return { name: f.name, data };
+      })
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") zip.file(r.value.name, r.value.data);
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${folderName}.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, []);
+
+  const openFolderContextMenu = useCallback((e, folderName, files) => {
+    e.preventDefault();
+    const items = [{
+      label: "Download folder",
+      action: () => downloadFolder(folderName, files),
+    }];
+    setCtxMenu({ x: e.clientX, y: e.clientY, items });
+  }, [downloadFolder]);
 
   const openContextMenu = useCallback((e, file) => {
     e.preventDefault();
@@ -271,6 +305,7 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                 name="maps"
                 expanded={mapsExpanded}
                 onToggle={() => setMapsExpanded(!mapsExpanded)}
+                onContextMenu={(e) => openFolderContextMenu(e, "maps", sortedMaps.filter(m => !m.disabled).map(m => ({ name: `${m.id}.tmj`, url: `https://florr.io/static/maps/${m.id}.tmj` })))}
               />
               {mapsExpanded &&
                 sortedMaps.map((m) => (
@@ -296,6 +331,7 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                 name="tiles"
                 expanded={tilesExpanded}
                 onToggle={() => setTilesExpanded(!tilesExpanded)}
+                onContextMenu={(e) => openFolderContextMenu(e, "tiles", tileFiles.map(t => ({ name: t.name, url: `https://florr.io/static/tiles/${t.name}` })))}
               />
               {tilesExpanded &&
                 tileFiles.map((t) => (
@@ -319,6 +355,7 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                 name="archived_maps"
                 expanded={archivedExpanded}
                 onToggle={() => setArchivedExpanded(!archivedExpanded)}
+                onContextMenu={(e) => openFolderContextMenu(e, "archived_maps", archivedMapList.filter(m => !m.disabled).map(m => ({ name: `${m.id}.tmj`, url: `${window.location.origin}/archived_maps/${m.id}.tmj` })))}
               />
               {archivedExpanded &&
                 archivedMapList.map((m) => (
