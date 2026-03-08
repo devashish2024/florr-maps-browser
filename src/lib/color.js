@@ -23,3 +23,15 @@ export const colorFromDiff = (diff) => {
   if (diff > 55) return RarityColor.Ultra;
   return RarityColor.Unique;
 };
+
+export const rarityFromDiff = (diff) => {
+  if (isNaN(diff)) return "Common";
+  if (diff <= 0) return "Common";
+  if (diff > 0 && diff <= 10) return "Unusual";
+  if (diff > 10 && diff <= 20) return "Rare";
+  if (diff > 20 && diff <= 30) return "Epic";
+  if (diff > 30 && diff <= 45) return "Legendary";
+  if (diff > 45 && diff <= 55) return "Mythic";
+  if (diff > 55) return "Ultra";
+  return "Unique";
+};

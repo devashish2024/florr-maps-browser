@@ -3,7 +3,7 @@ import { Camera } from "../lib/camera.js";
 import { TileRenderer } from "../lib/renderer.js";
 import { VIEW_W, VIEW_H } from "../lib/consts.js";
 import { darkened } from "../lib/utils.js";
-import { RarityColor } from "../lib/color.js";
+import { RarityColor, rarityFromDiff } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
 
 export default function MapCanvas({ mapData, sprites, mobSprites }) {
@@ -424,6 +424,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
         if (collision) {
           const contents = [];
+          contents.push(["rarity: " + rarityFromDiff(spawner.difficulty).toLowerCase(), spawner.color]);
           if (!isNaN(spawner.difficulty)) contents.push(["difficulty:" + spawner.difficulty, "#fff"]);
           if (!isNaN(spawner.density)) contents.push(["density:" + spawner.density, "#fff"]);
           if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay:" + spawner.extraSpawnDelay, "#facbcb"]);
@@ -433,7 +434,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           const mobsWithFreq = totalWeight > 0
             ? spawner.mobs.map((m) => ({ ...m, chance: Math.round((m.chance / totalWeight) * 100) + "%" }))
             : spawner.mobs;
-          newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq });
+          newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq, zoneColor: spawner.color });
         }
       }
 
@@ -541,6 +542,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
         // Mob icons
         if (tooltip.mobs) {
+          const bgColor = tooltip.zoneColor || RarityColor.Common;
           uctx.lineWidth = rw * 0.15;
           uctx.translate(0, pad);
           let i = 0;
@@ -574,8 +576,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
               continue;
             }
             uctx.save();
-            uctx.fillStyle = RarityColor.Common;
-            uctx.strokeStyle = darkened(RarityColor.Common.substring(1), 0.2);
+            uctx.fillStyle = bgColor;
+            uctx.strokeStyle = darkened(bgColor.substring(1), 0.2);
             uctx.fill(bgpath);
             uctx.clip(bgpath);
             uctx.drawImage(sprite, 0, 0, rw, rh);
