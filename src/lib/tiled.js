@@ -22,6 +22,7 @@ export const parseMap = (mapId) => {
   const mobSpawners = [];
   const checkPoints = [];
   const specialSprites = [];
+  const warps = [];
 
   for (const layer of data.layers) {
     // Process object layers
@@ -48,6 +49,16 @@ export const parseMap = (mapId) => {
           continue;
         }
 
+        if (obj.type === "warp" || obj.type === "warp_destination") {
+          const mapTarget = getPropertyStr("map", obj.properties);
+          const warpPoint = getPropertyStr("warp_point", obj.properties);
+          warps.push({
+            id: obj.id, x: obj.x, y: obj.y, name: obj.name || "",
+            warpType: obj.type, map: mapTarget, warpPoint,
+          });
+          continue;
+        }
+
         if (obj.type !== "spawn_mobs") continue;
 
         const difficulty = getProperty("difficulty", obj.properties);
@@ -60,7 +71,11 @@ export const parseMap = (mapId) => {
         const mobs = mobstr
           ?.replaceAll("\n", "")
           .split(";")
-          .map((x) => revmap.get(x.replace(";", "").split(":")[0]) ?? -1) ?? [];
+          .filter((x) => x.trim())
+          .map((x) => {
+            const parts = x.replace(";", "").split(":");
+            return { id: revmap.get(parts[0]) ?? -1, chance: parseFloat(parts[1]) || 0 };
+          }) ?? [];
 
         const points = new Path2D();
         const color = colorFromDiff(difficulty);
@@ -112,6 +127,7 @@ export const parseMap = (mapId) => {
     mobSpawners,
     checkPoints,
     specialSprites,
+    warps,
     gw: data.width,
     gh: data.height,
     width: data.width * tw,

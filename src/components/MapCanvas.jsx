@@ -382,6 +382,40 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
         }
       }
 
+      // Warps
+      const warpRadius = 200;
+      for (const warp of mapData.warps) {
+        octx.save();
+        octx.translate(warp.x, warp.y);
+
+        const warpPath = new Path2D();
+        warpPath.arc(0, 0, warpRadius, 0, Math.PI * 2);
+
+        const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
+
+        // Draw warp marker
+        if (warp.warpType === "warp") {
+          octx.strokeStyle = "#000000"; // Black for warp
+        } else {
+          octx.strokeStyle = "#ffffff"; // White for warp_destination
+        }
+        octx.lineWidth = 40;
+        octx.globalAlpha = collision ? 0.8 : 0.4;
+        octx.stroke(warpPath);
+        octx.globalAlpha = 1.0;
+
+        octx.restore();
+
+        if (collision) {
+          const contents = [[warp.warpType, "#00ccff"]];
+          if (warp.name) contents.push(["name: " + warp.name, "#fff"]);
+          if (warp.map) contents.push(["map: " + warp.map, "#aaffaa"]);
+          if (warp.warpPoint) contents.push(["warp_point: " + warp.warpPoint, "#ffffaa"]);
+          contents.push([`x:${Math.round(warp.x)} y:${Math.round(warp.y)}`, "#aaa"]);
+          newTooltips.set(warp.id, { contents });
+        }
+      }
+
       octx.restore();
       ctx.drawImage(overlay, 0, 0);
 
@@ -391,7 +425,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
       const pad = 5;
       const tipW = 230;
-      const tipH = 300;
+      const tipH = 360;
       const rw = 50;
       const rh = 50;
       const bgpath = new Path2D();
@@ -433,11 +467,11 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           uctx.lineWidth = rw * 0.15;
           uctx.translate(0, pad);
           let i = 0;
-          for (const id of tooltip.mobs) {
-            const sprite = mobSprites?.get(id);
+          for (const mob of tooltip.mobs) {
+            const sprite = mobSprites?.get(mob.id);
             if (!sprite) {
               // Fallback: show mob name text
-              const name = mobmap.get(id);
+              const name = mobmap.get(mob.id);
               if (name) {
                 uctx.save();
                 uctx.fillStyle = "#aaa";
@@ -445,9 +479,21 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
                 uctx.fillText(name, 0, rh * 0.5);
                 uctx.restore();
               }
+              // Show chance below fallback name
+              if (mob.chance !== undefined) {
+                uctx.save();
+                uctx.fillStyle = "#ffcc00";
+                uctx.strokeStyle = "#000";
+                uctx.lineWidth = 1.5;
+                uctx.font = "bold 11px GameMono, monospace";
+                uctx.textAlign = "center";
+                uctx.strokeText(mob.chance.toString(), rw * 0.5, rh + 12);
+                uctx.fillText(mob.chance.toString(), rw * 0.5, rh + 12);
+                uctx.restore();
+              }
               uctx.translate(rw + pad, 0);
               i++;
-              if (i % 4 === 0) uctx.translate(-(rw + pad) * 4, rh + pad);
+              if (i % 4 === 0) uctx.translate(-(rw + pad) * 4, rh + pad + 16);
               continue;
             }
             uctx.save();
@@ -458,9 +504,21 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
             uctx.drawImage(sprite, 0, 0, rw, rh);
             uctx.stroke(bgpath);
             uctx.restore();
+            // Show chance below icon
+            if (mob.chance !== undefined) {
+              uctx.save();
+              uctx.fillStyle = "#ffcc00";
+              uctx.strokeStyle = "#000";
+              uctx.lineWidth = 1.5;
+              uctx.font = "bold 11px GameMono, monospace";
+              uctx.textAlign = "center";
+              uctx.strokeText(mob.chance.toString(), rw * 0.5, rh + 12);
+              uctx.fillText(mob.chance.toString(), rw * 0.5, rh + 12);
+              uctx.restore();
+            }
             uctx.translate(rw + pad, 0);
             i++;
-            if (i % 4 === 0) uctx.translate(-(rw + pad) * 4, rh + pad);
+            if (i % 4 === 0) uctx.translate(-(rw + pad) * 4, rh + pad + 16);
           }
         }
 
