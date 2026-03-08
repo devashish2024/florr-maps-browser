@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Camera } from "../lib/camera.js";
 import { TileRenderer } from "../lib/renderer.js";
 import { VIEW_W, VIEW_H } from "../lib/consts.js";
@@ -10,6 +10,13 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const stateRef = useRef(null);
+  const [zoomLevel, setZoomLevel] = useState(0.25);
+  const [cursorX, setCursorX] = useState(0);
+  const [cursorY, setCursorY] = useState(0);
+  const [tileName, setTileName] = useState("");
+  const [minZoom, setMinZoom] = useState(0.0001);
+  const [maxZoom] = useState(10);
+  const updateFrequencyRef = useRef(0);
 
   // Initialize once
   const initState = useCallback(() => {
@@ -100,6 +107,12 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       const fitH = st.viewH / (1.2 * mapData.height);
       return Math.max(0.0001, fitW, fitH) * 0.75;
     };
+
+    // Calculate and store min zoom
+    const calculatedMinZoom = minFov();
+    setMinZoom(calculatedMinZoom);
+    stateRef.current.minZoom = calculatedMinZoom;
+    stateRef.current.maxZoom = maxFov;
 
     const clampFov = () => {
       const mn = minFov();
@@ -302,6 +315,53 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       st.cursorRx += (mx - st.cursorRx) * f;
       st.cursorRy += (my - st.cursorRy) * f;
 
+      // Update zoom and cursor state for UI (throttled to ~60fps/every 16ms or 100ms)
+      updateFrequencyRef.current++;
+      if (updateFrequencyRef.current >= 5) {
+        updateFrequencyRef.current = 0;
+        setZoomLevel(st.camera.fovR);
+        
+        // Calculate world coordinates
+        const worldX = st.camera.x + (mx - st.viewW * 0.5) / st.cameraScale;
+        const worldY = st.camera.y + (my - st.viewH * 0.5) / st.cameraScale;
+        setCursorX(worldX);
+        setCursorY(worldY);
+
+        // Get tile name at current position
+        if (mapData?.data?.tilesets?.length > 0 && mapData?.data?.layers?.length > 0) {
+          const gridX = Math.floor(worldX / mapData.tilewidth);
+          const gridY = Math.floor(worldY / mapData.tileheight);
+
+          if (gridX >= 0 && gridY >= 0 && gridX < mapData.gw && gridY < mapData.gh) {
+            // Find tile ID from first tile layer
+            let tileId = 0;
+            for (const layer of mapData.data.layers) {
+              if (layer.type === "tilelayer" && layer.data && layer.visible !== false) {
+                const idx = gridY * mapData.gw + gridX;
+                if (idx < layer.data.length) {
+                  tileId = layer.data[idx] & 0x0FFFFFFF; // Remove rotation flags
+                  if (tileId > 0) break;
+                }
+              }
+            }
+
+            if (tileId > 0) {
+              // Look up tile name in tileset
+              const tileset = mapData.data.tilesets[0];
+              const localId = tileId - (tileset?.firstgid ?? 1);
+              const tile = tileset?.tiles?.find((t) => t.id === localId);
+              setTileName(tile?.name || "");
+            } else {
+              setTileName("");
+            }
+          } else {
+            setTileName("");
+          }
+        } else {
+          setTileName("");
+        }
+      }
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       octx.clearRect(0, 0, overlay.width, overlay.height);
       uctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
@@ -425,7 +485,6 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           if (warp.name) contents.push(["name: " + warp.name, "#fff"]);
           if (warp.map) contents.push(["map: " + warp.map, "#aaffaa"]);
           if (warp.warpPoint) contents.push(["warp_point: " + warp.warpPoint, "#ffffaa"]);
-          contents.push([`x:${Math.round(warp.x)} y:${Math.round(warp.y)}`, "#aaa"]);
           newTooltips.set(warp.id, { contents });
         }
       }
@@ -573,6 +632,20 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
     };
   }, [mapData, sprites, mobSprites, initState]);
 
+  const handleZoomIn = () => {
+    const state = stateRef.current;
+    if (!state || zoomLevel >= maxZoom) return;
+    state.camera.fov *= 1.15;
+    state.camera.fovR = state.camera.fov;
+  };
+
+  const handleZoomOut = () => {
+    const state = stateRef.current;
+    if (!state || zoomLevel <= minZoom) return;
+    state.camera.fov *= 0.85;
+    state.camera.fovR = state.camera.fov;
+  };
+
   return (
     <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
       <canvas
@@ -587,6 +660,131 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           background: "transparent",
         }}
       />
+
+      {/* Unified Status Bar - Bottom (Coordinates, Tile, Zoom Controls) */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 28,
+          background: "#1a1a1a",
+          border: "1px solid #333",
+          borderTop: "1px solid #333",
+          borderBottom: "none",
+          borderRight: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingLeft: 8,
+          paddingRight: 0,
+          zIndex: 10,
+          fontFamily: '"GameMono", monospace',
+          fontSize: 11,
+          color: "#888",
+          userSelect: "none",
+        }}
+      >
+        {/* Left side - Coordinates and Tile Info */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            pointerEvents: "none",
+            overflow: "hidden",
+            flex: 1,
+          }}
+        >
+          <span>X: {Math.round(cursorX)}</span>
+          <span>Y: {Math.round(cursorY)}</span>
+          {tileName && <span style={{ color: "#aaa", whiteSpace: "nowrap" }}>Tile: {tileName}</span>}
+        </div>
+
+        {/* Right side - Zoom Controls */}
+        <div
+          style={{
+            display: "flex",
+            gap: 0,
+            pointerEvents: "auto",
+            height: "100%",
+          }}
+        >
+          <button
+            onClick={handleZoomIn}
+            disabled={zoomLevel >= maxZoom}
+            title="Zoom in"
+            style={{
+              background: "#0a0a0a",
+              border: "none",
+              borderRight: "1px solid #333",
+              borderRadius: "0",
+              outline: "none",
+              color: zoomLevel >= maxZoom ? "#555" : "#ccc",
+              cursor: zoomLevel >= maxZoom ? "default" : "pointer",
+              padding: "0 6px",
+              fontSize: 12,
+              fontWeight: "bold",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "all 0.15s",
+              opacity: zoomLevel >= maxZoom ? 0.5 : 1,
+              fontFamily: '"Game", Ubuntu, sans-serif',
+              height: "100%",
+            }}
+            onMouseEnter={(e) => {
+              if (zoomLevel < maxZoom) {
+                e.currentTarget.style.background = "#2a2d2e";
+                e.currentTarget.style.color = "#e8e8e8";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#0a0a0a";
+              e.currentTarget.style.color = zoomLevel >= maxZoom ? "#555" : "#ccc";
+            }}
+          >
+            +
+          </button>
+
+          <button
+            onClick={handleZoomOut}
+            disabled={zoomLevel <= minZoom}
+            title="Zoom out"
+            style={{
+              background: "#0a0a0a",
+              border: "none",
+              borderRadius: "0",
+              outline: "none",
+              color: zoomLevel <= minZoom ? "#555" : "#ccc",
+              cursor: zoomLevel <= minZoom ? "default" : "pointer",
+              padding: "0 6px",
+              fontSize: 12,
+              fontWeight: "bold",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "all 0.15s",
+              opacity: zoomLevel <= minZoom ? 0.5 : 1,
+              fontFamily: '"Game", Ubuntu, sans-serif',
+              height: "100%",
+            }}
+            onMouseEnter={(e) => {
+              if (zoomLevel > minZoom) {
+                e.currentTarget.style.background = "#2a2d2e";
+                e.currentTarget.style.color = "#e8e8e8";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#0a0a0a";
+              e.currentTarget.style.color = zoomLevel <= minZoom ? "#555" : "#ccc";
+            }}
+          >
+            −
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
