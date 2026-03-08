@@ -261,17 +261,17 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       const screenY = st.cursorY / st.scale;
       const worldX = st.camera.x + (screenX - st.viewW * 0.5) / st.cameraScale;
       const worldY = st.camera.y + (screenY - st.viewH * 0.5) / st.cameraScale;
-      
+
       // Apply zoom (very gradual: 10% per scroll)
       st.camera.fov *= e.deltaY > 0 ? 0.9 : 1.1;
       clampFov();
       updateGameScale(st.camera.fov);
-      
+
       // Adjust camera so world position is still under mouse
       st.camera.x = worldX - (screenX - st.viewW * 0.5) / st.cameraScale;
       st.camera.y = worldY - (screenY - st.viewH * 0.5) / st.cameraScale;
       clampViewerCenter();
-      
+
       if (e.ctrlKey) e.preventDefault();
     };
 
