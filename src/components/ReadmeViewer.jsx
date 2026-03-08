@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 
 // Simple markdown-to-HTML converter for README rendering
 function mdToHtml(md) {
@@ -83,7 +83,7 @@ function mdToHtml(md) {
   return html;
 }
 
-export default function ReadmeViewer({ src = "/README.md" }) {
+export default memo(function ReadmeViewer({ src = "/README.md" }) {
   const [html, setHtml] = useState(null);
   const [error, setError] = useState(null);
 
@@ -123,4 +123,4 @@ export default function ReadmeViewer({ src = "/README.md" }) {
       />
     </div>
   );
-}
+})
