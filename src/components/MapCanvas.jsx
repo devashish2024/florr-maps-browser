@@ -320,7 +320,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       if (updateFrequencyRef.current >= 5) {
         updateFrequencyRef.current = 0;
         setZoomLevel(st.camera.fovR);
-        
+
         // Calculate world coordinates
         const worldX = st.camera.x + (mx - st.viewW * 0.5) / st.cameraScale;
         const worldY = st.camera.y + (my - st.viewH * 0.5) / st.cameraScale;
