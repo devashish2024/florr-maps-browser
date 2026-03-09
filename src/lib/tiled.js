@@ -23,6 +23,7 @@ export const parseMap = (mapId) => {
   const checkPoints = [];
   const specialSprites = [];
   const warps = [];
+  const respawnAreas = [];
   const unknownObjects = [];
 
   for (const layer of data.layers) {
@@ -46,6 +47,15 @@ export const parseMap = (mapId) => {
           checkPoints.push({
             id: obj.id, x: obj.x, y: obj.y, width: w, height: h,
             level: isNaN(level) ? 0 : level, points, rawObj: obj,
+          });
+          continue;
+        }
+
+        if (obj.type === "respawn_area") {
+          const points = new Path2D();
+          points.rect(0, 0, w, h);
+          respawnAreas.push({
+            id: obj.id, x: obj.x, y: obj.y, width: w, height: h, points, rawObj: obj,
           });
           continue;
         }
@@ -154,6 +164,7 @@ export const parseMap = (mapId) => {
     checkPoints,
     specialSprites,
     warps,
+    respawnAreas,
     unknownObjects,
     gw: data.width,
     gh: data.height,

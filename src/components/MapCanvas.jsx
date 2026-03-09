@@ -150,44 +150,56 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
 
     // Auto-zoom to starting checkpoint
     const glideToCheckpoint = () => {
-      const cps = mapData.checkPoints;
-      if (cps.length === 0) {
-        st.camera.x = mapData.width * 0.5;
-        st.camera.y = mapData.height * 0.5;
-        st.camera.rx = st.camera.x;
-        st.camera.ry = st.camera.y;
+      const goTo = (x, y) => {
+        st.camera.fov = 0.25;
+        st.camera.fovR = 0.25;
+        st.camera.x = x;
+        st.camera.y = y;
+        st.camera.rx = x;
+        st.camera.ry = y;
         clampFov();
         updateGameScale(st.camera.fovR);
         clampViewerCenter();
+      };
+
+      // 1. checkpoint level 0 — middle if exactly 3, else first
+      const level0 = mapData.checkPoints.filter((c) => c.level === 0);
+      if (level0.length > 0) {
+        const t = level0.length === 3 ? level0[1] : level0[0];
+        goTo(t.x + t.width * 0.5, t.y + t.height * 0.5);
         return;
       }
 
-      const minLevel = Math.min(...cps.map((c) => c.level));
-      if (minLevel !== 0) {
-        st.camera.x = mapData.width * 0.5;
-        st.camera.y = mapData.height * 0.5;
-        st.camera.rx = st.camera.x;
-        st.camera.ry = st.camera.y;
-        clampFov();
-        updateGameScale(st.camera.fovR);
-        clampViewerCenter();
+      // 2. respawn_area — first one
+      if (mapData.respawnAreas?.length > 0) {
+        const ra = mapData.respawnAreas[0];
+        goTo(ra.x + ra.width * 0.5, ra.y + ra.height * 0.5);
         return;
       }
 
-      const level0 = cps.filter((c) => c.level === 0);
-      const target = level0.length === 3 ? level0[1] : level0[0];
-      if (!target) return;
+      // 3. warp_destination — first one
+      const warpDests = mapData.warps.filter((w) => w.warpType === "warp_destination");
+      if (warpDests.length > 0) {
+        const wd = warpDests[0];
+        goTo(wd.x + wd.width * 0.5, wd.y + wd.height * 0.5);
+        return;
+      }
 
-      st.camera.fov = 0.25;
-      st.camera.fovR = 0.25;
-      st.camera.x = target.x + target.width * 0.5;
-      st.camera.y = target.y + target.height * 0.5;
-      st.camera.rx = st.camera.x;
-      st.camera.ry = st.camera.y;
+      // 4. warp — middle if exactly 3, use it if exactly 1
+      const warpObjs = mapData.warps.filter((w) => w.warpType === "warp");
+      if (warpObjs.length === 3) {
+        const t = warpObjs[1];
+        goTo(t.x + t.width * 0.5, t.y + t.height * 0.5);
+        return;
+      }
+      if (warpObjs.length === 1) {
+        const t = warpObjs[0];
+        goTo(t.x + t.width * 0.5, t.y + t.height * 0.5);
+        return;
+      }
 
-      clampFov();
-      updateGameScale(st.camera.fovR);
-      clampViewerCenter();
+      // 5. map center
+      goTo(mapData.width * 0.5, mapData.height * 0.5);
     };
 
     if (firstMapRef.current) {
