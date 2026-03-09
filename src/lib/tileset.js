@@ -27,24 +27,22 @@ export const loadTiles = async (onStatus, skipCache) => {
   const uniqueImages = [...new Set(idToImage.values())];
   const fetchedSvg = new Map();
 
-  let done = 0;
   const results = await Promise.allSettled(
-    uniqueImages.map(async (image) => {
+    uniqueImages.map(async (image, idx) => {
       const url = `${TILES_BASE_URL}/${image}`;
       const svg = await fetchText(url, skipCache, {
         ttlMs: ONE_YEAR_MS,
         cacheKey: `tile:${image}`,
       });
-      done++;
-      onStatus?.(`Loading tiles... ${done}/${uniqueImages.length}`);
-      return { image, svg };
+      return { image, svg, idx };
     })
   );
 
-  for (const result of results) {
-    if (result.status !== "fulfilled") continue;
+  results.forEach((result, idx) => {
+    onStatus?.(`Loading tiles... ${idx + 1}/${uniqueImages.length}`);
+    if (result.status !== "fulfilled") return;
     fetchedSvg.set(result.value.image, result.value.svg);
-  }
+  });
 
   const tiles = new Map();
   const tileFileEntries = [];

@@ -24,7 +24,8 @@ export const ensureMapLoaded = async (id, onStatus) => {
     mapCache.set(id, raw);
     mapLastFetched.set(id, lastFetched || new Date().toISOString());
     return true;
-  } catch {
+  } catch (err) {
+    console.error(`Failed to load map ${id}:`, err);
     return false;
   }
 };
@@ -56,12 +57,16 @@ export const ensureArchivedMapLoaded = async (id, onStatus) => {
 
   try {
     const response = await fetch(`/archived_maps/${id}.tmj`);
-    if (!response.ok) return false;
+    if (!response.ok) {
+      console.error(`Failed to load archived map ${id}: ${response.status}`);
+      return false;
+    }
     const raw = await response.text();
     mapCache.set(cacheKey, raw);
     mapLastFetched.set(cacheKey, new Date().toISOString());
     return true;
-  } catch {
+  } catch (err) {
+    console.error(`Failed to load archived map ${id}:`, err);
     return false;
   }
 };

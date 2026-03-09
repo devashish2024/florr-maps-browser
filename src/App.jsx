@@ -126,7 +126,9 @@ export default function App() {
         setStatus(`Loading all maps... 0/${mapsTotal}`);
         const mapResults = await Promise.allSettled(
           meta.map(async (m) => {
-            const ok = await ensureMapLoaded(m.id);
+            const ok = await ensureMapLoaded(m.id, (msg) => {
+              if (!cancelled) setStatus(`Loading map ${m.id}: ${msg}`);
+            });
             mapsDone++;
             if (!cancelled) setStatus(`Loading all maps... ${mapsDone}/${mapsTotal}`);
             return { ...m, ok, disabled: !ok, fetched: true };
