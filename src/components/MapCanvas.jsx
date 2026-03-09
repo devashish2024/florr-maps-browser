@@ -673,7 +673,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           // Check if word itself is too long and needs to be broken on delimiters
           while (word && uctx.measureText(word).width > maxWidth) {
             let broken = false;
-            
+
             // Try breaking on semicolons (for mobs lists)
             if (word.includes(";")) {
               const parts = word.split(";");
