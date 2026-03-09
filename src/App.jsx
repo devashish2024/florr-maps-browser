@@ -73,18 +73,11 @@ export default function App() {
   const [loadStartedAt] = useState(() => Date.now());
   const [refreshStartedAt, setRefreshStartedAt] = useState(null);
   const [timerNow, setTimerNow] = useState(() => Date.now());
-  const etaRemainingMsRef = useRef(null);
 
   useEffect(() => {
     if (!loading && !refreshing) return;
     const intervalId = setInterval(() => setTimerNow(Date.now()), 1000);
     return () => clearInterval(intervalId);
-  }, [loading, refreshing]);
-
-  useEffect(() => {
-    if (!loading && !refreshing) {
-      etaRemainingMsRef.current = null;
-    }
   }, [loading, refreshing]);
 
   const loadAndSelectMap = useCallback(async (mapId, onStatus, archived = false) => {
@@ -103,103 +96,8 @@ export default function App() {
 
     const init = async () => {
       try {
-        const progress = {
-          tilesDone: 0,
-          tilesTotal: 0,
-          mapsDone: 0,
-          mapsTotal: 0,
-          mobsDone: 0,
-          mobsTotal: mobmap.size,
-          archivedDone: 0,
-          archivedTotal: 0,
-        };
-
-        const updateLoadingStatus = () => {
-          const done = progress.tilesDone + progress.mapsDone + progress.mobsDone + progress.archivedDone;
-          const total = progress.tilesTotal + progress.mapsTotal + progress.mobsTotal + progress.archivedTotal;
-          if (!cancelled) setStatus(`Loading assets... ${done}/${Math.max(total, 1)}`);
-        };
-
-        updateLoadingStatus();
-
-        const tilesPromise = loadTiles((tileStatus) => {
-          const ratioMatch = tileStatus.match(/Loading tiles\.\.\.\s*(\d+)\s*\/\s*(\d+)/);
-          if (!ratioMatch) return;
-          progress.tilesDone = Number(ratioMatch[1]) || 0;
-          progress.tilesTotal = Number(ratioMatch[2]) || 0;
-          updateLoadingStatus();
-        });
-
-        const mapsPromise = (async () => {
-          const { meta, rawContent: rawMl, lastFetched: mlLf } = await loadMapList();
-          if (cancelled) return [];
-          setRawMapList(rawMl);
-          setMapListLastFetched(mlLf);
-
-          progress.mapsDone = 0;
-          progress.mapsTotal = meta.length;
-          updateLoadingStatus();
-
-          const results = await Promise.allSettled(
-            meta.map(async (m) => {
-              const ok = await ensureMapLoaded(m.id);
-              progress.mapsDone++;
-              updateLoadingStatus();
-              return { ...m, ok, disabled: !ok, fetched: true };
-            })
-          );
-          if (cancelled) return [];
-
-          const checkedMeta = results
-            .map((r, i) => r.status === "fulfilled" ? r.value : { ...meta[i], ok: false, disabled: true, fetched: true })
-            .filter((m) => !m.candidate || m.ok);
-          setMapList(checkedMeta);
-          return checkedMeta;
-        })();
-
-        const mobsPromise = (async () => {
-          const mobEntries = [...mobmap.entries()];
-          const results = await Promise.allSettled(
-            mobEntries.map(async ([id]) => {
-              const svg = await fetchText(`${MOB_SVG_BASE}/${id}.svg`, false, {
-                ttlMs: ONE_YEAR_MS,
-                cacheKey: `mob:${id}`,
-              });
-              const canvas = svgToCanvas(svg, 256, 256);
-              return { id, canvas };
-            })
-          );
-
-          const mSprites = new Map();
-          for (const result of results) {
-            progress.mobsDone++;
-            updateLoadingStatus();
-            if (result.status !== "fulfilled") continue;
-            if (result.value.canvas) mSprites.set(result.value.id, result.value.canvas);
-          }
-          return mSprites;
-        })();
-
-        const archivedPromise = (async () => {
-          const archivedMeta = await loadArchivedMapList();
-          progress.archivedDone = 0;
-          progress.archivedTotal = archivedMeta.length;
-          updateLoadingStatus();
-
-          const archivedResults = await Promise.allSettled(
-            archivedMeta.map(async (m) => {
-              const ok = await ensureArchivedMapLoaded(m.id);
-              progress.archivedDone++;
-              updateLoadingStatus();
-              return { ...m, ok, disabled: !ok, fetched: true };
-            })
-          );
-
-          return archivedResults
-            .map((r, i) => r.status === "fulfilled" ? r.value : { ...archivedMeta[i], ok: false, disabled: true, fetched: true });
-        })();
-
-        const { tiles: tileSvgs, tileFileEntries, rawTileset: rawTs } = await tilesPromise;
+        // 1. Load tiles
+        const { tiles: tileSvgs, tileFileEntries, rawTileset: rawTs } = await loadTiles(setStatus);
         if (!cancelled) {
           setTileFiles(tileFileEntries);
           setRawTileset(rawTs);
@@ -213,10 +111,34 @@ export default function App() {
         }
         if (!cancelled) setSprites(tileSprites);
 
-        const checkedMeta = await mapsPromise;
+        // 2. Load map list
+        setStatus("Loading map list...");
+        const { meta, rawContent: rawMl, lastFetched: mlLf } = await loadMapList(setStatus);
         if (cancelled) return;
+        if (!cancelled) {
+          setRawMapList(rawMl);
+          setMapListLastFetched(mlLf);
+        }
 
-        // 5. Determine start map
+        // 3. Preload all maps in parallel
+        let mapsDone = 0;
+        const mapsTotal = meta.length;
+        setStatus(`Loading all maps... 0/${mapsTotal}`);
+        const mapResults = await Promise.allSettled(
+          meta.map(async (m) => {
+            const ok = await ensureMapLoaded(m.id);
+            mapsDone++;
+            if (!cancelled) setStatus(`Loading all maps... ${mapsDone}/${mapsTotal}`);
+            return { ...m, ok, disabled: !ok, fetched: true };
+          })
+        );
+        if (cancelled) return;
+        const checkedMeta = mapResults
+          .map((r, i) => r.status === "fulfilled" ? r.value : { ...meta[i], ok: false, disabled: true, fetched: true })
+          .filter((m) => !m.candidate || m.ok); // Hide failed auto-discovered candidates
+        setMapList(checkedMeta);
+
+        // 4. Determine start map
         let visitedFile = null;
         try {
           const raw = localStorage.getItem("visited_file");
@@ -252,9 +174,44 @@ export default function App() {
         }
         setMapData(data);
 
-        const [mSprites, checkedArchived] = await Promise.all([mobsPromise, archivedPromise]);
+        // 7. Load mob sprites in background
+        let mobsDone = 0;
+        const mobsTotal = mobmap.size;
+        setStatus(`Loading mob sprites... 0/${mobsTotal}`);
+        const mSprites = new Map();
+        for (const [id] of mobmap) {
+          try {
+            const svg = await fetchText(`${MOB_SVG_BASE}/${id}.svg`, false, {
+              ttlMs: ONE_YEAR_MS,
+              cacheKey: `mob:${id}`,
+            });
+            const canvas = svgToCanvas(svg, 256, 256);
+            if (canvas) mSprites.set(id, canvas);
+          } catch {
+            // skip unavailable mob sprites
+          }
+          mobsDone++;
+          if (!cancelled) setStatus(`Loading mob sprites... ${mobsDone}/${mobsTotal}`);
+        }
+        if (!cancelled) setMobSpritesState(mSprites);
+
+        // 9. Load archived map list
+        setStatus("Loading archived maps...");
+        const archivedMeta = await loadArchivedMapList(setStatus);
+        let archivedDone = 0;
+        const archivedTotal = archivedMeta.length;
+        setStatus(`Loading archived maps... 0/${archivedTotal}`);
+        const archivedResults = await Promise.allSettled(
+          archivedMeta.map(async (m) => {
+            const ok = await ensureArchivedMapLoaded(m.id);
+            archivedDone++;
+            if (!cancelled) setStatus(`Loading archived maps... ${archivedDone}/${archivedTotal}`);
+            return { ...m, ok, disabled: !ok, fetched: true };
+          })
+        );
         if (cancelled) return;
-        setMobSpritesState(mSprites);
+        const checkedArchived = archivedResults
+          .map((r, i) => r.status === "fulfilled" ? r.value : { ...archivedMeta[i], ok: false, disabled: true, fetched: true });
         setArchivedMapList(checkedArchived);
 
         setStatus("Done");
@@ -353,19 +310,10 @@ export default function App() {
   const activeStartedAt = refreshing && refreshStartedAt ? refreshStartedAt : loadStartedAt;
   const elapsedMs = Math.max(0, timerNow - activeStartedAt);
   const progressRatio = parseProgressFraction(status);
-
-  let etaText = `Elapsed ${formatDuration(elapsedMs)}`;
-  if (progressRatio != null && progressRatio > 0.01 && progressRatio < 1) {
-    const rawRemaining = (elapsedMs * (1 - progressRatio)) / progressRatio;
-    const prevRemaining = etaRemainingMsRef.current;
-    const nextRemaining = prevRemaining == null
-      ? rawRemaining
-      : Math.min(prevRemaining, rawRemaining);
-    etaRemainingMsRef.current = Math.max(0, nextRemaining);
-    etaText = `Approx ${formatDuration(etaRemainingMsRef.current)} remaining`;
-  } else {
-    etaRemainingMsRef.current = null;
-  }
+  const etaText =
+    progressRatio != null && progressRatio > 0.01 && progressRatio < 1
+      ? `Approx ${formatDuration((elapsedMs * (1 - progressRatio)) / progressRatio)} remaining`
+      : `Elapsed ${formatDuration(elapsedMs)}`;
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
