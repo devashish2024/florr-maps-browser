@@ -28,15 +28,22 @@ export const loadTiles = async (onStatus, skipCache) => {
   const fetchedSvg = new Map();
 
   let done = 0;
-  for (const image of uniqueImages) {
-    const url = `${TILES_BASE_URL}/${image}`;
-    const svg = await fetchText(url, skipCache, {
-      ttlMs: ONE_YEAR_MS,
-      cacheKey: `tile:${image}`,
-    });
-    fetchedSvg.set(image, svg);
-    done++;
-    onStatus?.(`Loading tiles... ${done}/${uniqueImages.length}`);
+  const results = await Promise.allSettled(
+    uniqueImages.map(async (image) => {
+      const url = `${TILES_BASE_URL}/${image}`;
+      const svg = await fetchText(url, skipCache, {
+        ttlMs: ONE_YEAR_MS,
+        cacheKey: `tile:${image}`,
+      });
+      done++;
+      onStatus?.(`Loading tiles... ${done}/${uniqueImages.length}`);
+      return { image, svg };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    fetchedSvg.set(result.value.image, result.value.svg);
   }
 
   const tiles = new Map();

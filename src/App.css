@@ -228,6 +228,12 @@ body,
   max-width: 440px;
 }
 
+.loading-eta {
+  color: #9ec0d6;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .loading-hint {
   color: #8fa6b8;
   font-size: 12px;
@@ -305,12 +311,45 @@ body,
   }
 
   .loading-title {
-    font-size: 18px;
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  .loading-overlay {
+    padding: 10px;
+    align-items: flex-end;
   }
 
   .loading-panel {
-    padding: 16px 14px 12px;
-    gap: 8px;
+    width: 100%;
+    border-radius: 14px;
+    padding: 14px 12px 12px;
+    gap: 6px;
+  }
+
+  .loading-spinner {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+  }
+
+  .loading-status {
+    font-size: 13px;
+    line-height: 1.35;
+    min-height: 18px;
+  }
+
+  .loading-eta {
+    font-size: 11px;
+  }
+
+  .loading-hint {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .loading-link-btn {
+    font-size: 12px;
   }
 
   .background-loading-chip {
