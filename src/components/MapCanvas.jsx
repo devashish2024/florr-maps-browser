@@ -108,7 +108,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
     const minFov = () => {
       const fitW = st.viewW / (1.2 * mapData.width);
       const fitH = st.viewH / (1.2 * mapData.height);
-      return Math.max(0.0001, fitW, fitH) * 0.75;
+      const computed = Math.max(0.0001, fitW, fitH) * 0.75;
+      if (mapKey === "hel" || mapKey === "br/hel") return Math.min(computed, 0.03);
+      return computed;
     };
 
     // Calculate and store min zoom
@@ -238,11 +240,13 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
     } else {
       // Map switch: go to checkpoint/spawn, snap zoom to 0.25, then animate to 0.125
       glideToCheckpoint();
-      st.camera.fovR = 0.52;
-      st.camera.fov = 0.25;
-      clampFov();
-      updateGameScale(st.camera.fovR);
-      clampViewerCenter();
+      if (mapKey !== "hel" && mapKey !== "br/hel") {
+        st.camera.fovR = 0.52;
+        st.camera.fov = 0.25;
+        clampFov();
+        updateGameScale(st.camera.fovR);
+        clampViewerCenter();
+      }
       st.wrapAlpha = 0;
     }
     st.tooltips.clear();
