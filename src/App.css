@@ -172,6 +172,103 @@ body,
   animation: skeleton-spin 1.2s linear infinite;
 }
 
+/* Prominent loading indicator for initial load/refresh */
+@keyframes overlay-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 15, 0.68);
+  backdrop-filter: blur(2px);
+}
+
+.loading-panel {
+  width: min(92vw, 520px);
+  border: 1px solid #3f3f3f;
+  background: linear-gradient(180deg, #252525 0%, #1b1b1b 100%);
+  border-radius: 12px;
+  padding: 20px 20px 16px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border: 3px solid #4a4a4a;
+  border-top-color: #5bc0ff;
+  border-radius: 50%;
+  animation: overlay-spin 0.9s linear infinite;
+}
+
+.loading-title {
+  color: #f0f0f0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.loading-status {
+  color: #b8c7d4;
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 20px;
+  max-width: 440px;
+}
+
+.loading-hint {
+  color: #8fa6b8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.loading-link-btn {
+  border: none;
+  background: transparent;
+  color: #5bc0ff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.loading-link-btn:hover {
+  color: #84d1ff;
+}
+
+.background-loading-chip {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 90;
+  border: 1px solid #3f3f3f;
+  background: rgba(25, 25, 25, 0.9);
+  color: #b8c7d4;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-family: "Game", "Ubuntu", sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.background-loading-chip:hover {
+  background: rgba(34, 34, 34, 0.95);
+  color: #d4e3ee;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .file-browser {
@@ -205,5 +302,20 @@ body,
 
   .readme-content {
     padding: 24px 20px;
+  }
+
+  .loading-title {
+    font-size: 18px;
+  }
+
+  .loading-panel {
+    padding: 16px 14px 12px;
+    gap: 8px;
+  }
+
+  .background-loading-chip {
+    right: 10px;
+    left: 10px;
+    bottom: 10px;
   }
 }

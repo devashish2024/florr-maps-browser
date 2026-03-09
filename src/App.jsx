@@ -52,6 +52,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [archivedMapList, setArchivedMapList] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [backgroundLoadMode, setBackgroundLoadMode] = useState(false);
 
   const loadAndSelectMap = useCallback(async (mapId, onStatus, archived = false) => {
     const ok = archived
@@ -341,26 +342,40 @@ export default function App() {
             onRefreshAllMaps={handleRefreshAllMaps}
           />
         )}
-        {(loading || refreshing) && (
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              bottom: 24,
-              transform: "translateX(-50%)",
-              color: "#888",
-              fontSize: 14,
-              fontFamily: "Game, Ubuntu, sans-serif",
-              textAlign: "center",
-              zIndex: 100,
-              background: "rgba(30,30,30,0.85)",
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: "1px solid #333",
-            }}
-          >
-            {status}
+        {(refreshing || (loading && !backgroundLoadMode)) && (
+          <div className="loading-overlay" role="status" aria-live="polite">
+            <div className="loading-panel">
+              <div className="loading-spinner" aria-hidden="true" />
+              <div className="loading-title">
+                {loading ? "Loading map assets..." : "Refreshing content..."}
+              </div>
+              <div className="loading-status">{status}</div>
+              {loading && (
+                <>
+                  <div className="loading-hint">
+                    First load may take a moment. Cached data will be much faster next time.
+                  </div>
+                  <button
+                    className="loading-link-btn"
+                    type="button"
+                    onClick={() => setBackgroundLoadMode(true)}
+                  >
+                    Load in background
+                  </button>
+                </>
+              )}
+            </div>
           </div>
+        )}
+        {loading && backgroundLoadMode && (
+          <button
+            type="button"
+            className="background-loading-chip"
+            onClick={() => setBackgroundLoadMode(false)}
+            aria-label="Show loading progress"
+          >
+            Loading in background... view progress
+          </button>
         )}
       </div>
     </div>
