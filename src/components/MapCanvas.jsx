@@ -164,7 +164,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
 
       // Map-specific overrides
       if (mapKey === "hel" || mapKey === "br/hel") {
-        goTo(mapData.width * 0.5, mapData.height * 0.5, minFov());
+        goTo(mapData.width * 0.5, mapData.height * 0.5, 0.03);
         return;
       }
       if (mapKey === "jungle") {
@@ -234,6 +234,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
         }
       } catch { /* ignore */ }
       if (!restored) glideToCheckpoint();
+      st.wrapAlpha = 1.0;
     } else {
       // Map switch: go to checkpoint/spawn, snap zoom to 0.25, then animate to 0.125
       glideToCheckpoint();
@@ -242,9 +243,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
       clampFov();
       updateGameScale(st.camera.fovR);
       clampViewerCenter();
+      st.wrapAlpha = 0;
     }
     st.tooltips.clear();
-    st.wrapAlpha = 1.0;
 
     // --- Event handlers ---
     const onResize = () => {
@@ -334,6 +335,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
       st.camera.fov *= e.deltaY > 0 ? 0.9 : 1.1;
       clampFov();
       updateGameScale(st.camera.fov);
+      console.log("Zoom level:", st.camera.fov.toFixed(3));
 
       // Adjust camera so world position is still under mouse
       st.camera.x = worldX - (screenX - st.viewW * 0.5) / st.cameraScale;
