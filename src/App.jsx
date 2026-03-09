@@ -49,6 +49,10 @@ export default function App() {
         if (parsed?.type === "map" && parsed.id) return parsed;
         if (parsed?.type === "archived_map" && parsed.id) return parsed;
         if (parsed?.type === "readme") return parsed;
+        if (parsed?.type === "help") return parsed;
+        if (parsed?.type === "tileset") return parsed;
+        if (parsed?.type === "tile" && parsed.id != null) return parsed;
+        if (parsed?.type === "maplist") return parsed;
       }
     } catch { /* ignore */ }
     // Legacy fallback
@@ -216,6 +220,15 @@ export default function App() {
           .map((r, i) => r.status === "fulfilled" ? r.value : { ...archivedMeta[i], ok: false, disabled: true, fetched: true });
         setArchivedMapList(checkedArchived);
 
+        // If last visited was an archived map, load its data now
+        if (visitedFile?.type === "archived_map" && visitedFile.id) {
+          const archivedEntry = checkedArchived.find((m) => m.id === visitedFile.id && m.ok);
+          if (archivedEntry) {
+            const archivedData = await loadAndSelectMap(visitedFile.id, setStatus, true);
+            if (!cancelled && archivedData) setMapData(archivedData);
+          }
+        }
+
         setStatus("Done");
         setLoading(false);
       } catch (err) {
@@ -229,9 +242,9 @@ export default function App() {
   }, [loadAndSelectMap]);
 
   const saveVisited = (file) => {
-    if (file.type === "map" || file.type === "archived_map" || file.type === "readme") {
+    try {
       localStorage.setItem("visited_file", JSON.stringify(file));
-    }
+    } catch { /* ignore */ }
   };
 
   const handleFileSelect = useCallback(async (file) => {
@@ -375,6 +388,7 @@ export default function App() {
             mapData={mapData}
             sprites={sprites}
             mobSprites={mobSpritesState}
+            mapKey={currentFile?.type === "archived_map" ? `archived/${currentFile?.id}` : currentFile?.id}
           />
         )}
         {!loading && currentFile?.type === "tile" && sprites && (
@@ -390,6 +404,7 @@ export default function App() {
         {!loading && currentFile?.type === "maplist" && (
           <MapListViewer
             mapList={mapList}
+            archivedMapList={archivedMapList}
             mapListLastFetched={mapListLastFetched}
             onFileSelect={handleFileSelect}
             onRefreshAllMaps={handleRefreshAllMaps}

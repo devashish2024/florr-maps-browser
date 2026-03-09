@@ -6,10 +6,12 @@ import { darkened } from "../lib/utils.js";
 import { RarityColor, rarityFromDiff } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
 
-export default function MapCanvas({ mapData, sprites, mobSprites }) {
+export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const stateRef = useRef(null);
+  const firstMapRef = useRef(true);
+  const mapKeyRef = useRef(mapKey);
   const [zoomLevel, setZoomLevel] = useState(0.25);
   const [cursorX, setCursorX] = useState(0);
   const [cursorY, setCursorY] = useState(0);
@@ -52,6 +54,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
   }, []);
 
   useEffect(() => {
+    mapKeyRef.current = mapKey;
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container || !mapData || !sprites) return;
@@ -187,7 +190,37 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       clampViewerCenter();
     };
 
-    glideToCheckpoint();
+    if (firstMapRef.current) {
+      firstMapRef.current = false;
+      let restored = false;
+      try {
+        const saved = localStorage.getItem('camera:' + mapKey);
+        if (saved) {
+          const { x, y, fov } = JSON.parse(saved);
+          if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(fov) && fov > 0) {
+            st.camera.x = x;
+            st.camera.y = y;
+            st.camera.fov = fov;
+            st.camera.rx = x;
+            st.camera.ry = y;
+            st.camera.fovR = fov;
+            clampFov();
+            updateGameScale(st.camera.fovR);
+            clampViewerCenter();
+            restored = true;
+          }
+        }
+      } catch { /* ignore */ }
+      if (!restored) glideToCheckpoint();
+    } else {
+      // Map switch: go to checkpoint/spawn, snap zoom to 0.25, then animate to 0.125
+      glideToCheckpoint();
+      st.camera.fovR = 0.52;
+      st.camera.fov = 0.25;
+      clampFov();
+      updateGameScale(st.camera.fovR);
+      clampViewerCenter();
+    }
     st.tooltips.clear();
     st.wrapAlpha = 1.0;
 
@@ -302,11 +335,24 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
     canvas.addEventListener("contextmenu", onContextMenu);
 
     // --- Render loop ---
+    let lastSaveTime = -Infinity;
     const renderLoop = (time) => {
       const dt = Math.max(0, time - st.lastTime);
       st.lastTime = time;
 
       st.camera.update(dt);
+
+      // Periodically save camera state to localStorage
+      if (time - lastSaveTime > 2000 && mapKeyRef.current) {
+        lastSaveTime = time;
+        try {
+          localStorage.setItem('camera:' + mapKeyRef.current, JSON.stringify({
+            x: st.camera.x,
+            y: st.camera.y,
+            fov: st.camera.fov,
+          }));
+        } catch { /* ignore */ }
+      }
 
       // Smooth cursor
       const f = Math.min(1, dt * 0.02);
@@ -870,7 +916,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", onContextMenu);
     };
-  }, [mapData, sprites, mobSprites, initState]);
+  }, [mapData, sprites, mobSprites, initState, mapKey]);
 
   const handleZoomIn = () => {
     const state = stateRef.current;

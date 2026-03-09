@@ -15,7 +15,7 @@ function timeAgo(isoString) {
   return `${days} day${days !== 1 ? "s" : ""} ago`;
 }
 
-export default function MapListViewer({ mapList, mapListLastFetched, onFileSelect, onRefreshAllMaps }) {
+export default function MapListViewer({ mapList, archivedMapList = [], mapListLastFetched, onFileSelect, onRefreshAllMaps }) {
   const [, setTick] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -119,6 +119,65 @@ export default function MapListViewer({ mapList, mapListLastFetched, onFileSelec
             </div>
           ))}
         </div>
+
+        {archivedMapList.length > 0 && (
+          <>
+            <h3 style={{ fontSize: 16, marginTop: 36, marginBottom: 8, color: "#aaa" }}>Archived Maps</h3>
+            <p style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>
+              {archivedMapList.filter((m) => !m.disabled).length} archived maps available.
+              These are old maps that are no longer live.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {archivedMapList.map((m) =>
+                m.disabled ? (
+                  <div
+                    key={m.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      background: "#1a1a1a",
+                      borderRadius: 6,
+                      fontSize: 14,
+                      opacity: 0.5,
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span>⚠️</span>
+                      <span>{m.name}</span>
+                      <span style={{ color: "#555", fontSize: 12 }}>{m.id}.tmj</span>
+                    </span>
+                    <span style={{ color: "#555", fontSize: 12 }}>unavailable</span>
+                  </div>
+                ) : (
+                  <div
+                    key={m.id}
+                    onClick={() => onFileSelect({ type: "archived_map", id: m.id })}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      background: "#222",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontSize: 14,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2d2e")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#222")}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span>🗄️</span>
+                      <span style={{ color: "#e8e8e8" }}>{m.name}</span>
+                      <span style={{ color: "#555", fontSize: 12 }}>{m.id}.tmj</span>
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
