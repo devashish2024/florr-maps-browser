@@ -406,6 +406,75 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       const lw = 25;
       const newTooltips = new Map();
 
+      // Helper function to get all properties from a raw object
+      const getObjectProperties = (rawObj) => {
+        const props = [];
+        if (rawObj.properties && Array.isArray(rawObj.properties)) {
+          for (const prop of rawObj.properties) {
+            props.push([prop.name + ": " + prop.value, "#ccc"]);
+          }
+        }
+        return props;
+      };
+
+      // Helper function to look up tile name by gid
+      const getTileNameByGid = (tileId) => {
+        for (const tileset of mapData.data.tilesets || []) {
+          if (tileset.tiles) {
+            const localId = tileId - (tileset.firstgid ?? 1);
+            const tile = tileset.tiles.find((t) => t.id === localId);
+            if (tile) return tile.name;
+          }
+        }
+        return null;
+      };
+
+      // Check for tiles under cursor (for tooltip)
+      const gridX = Math.floor(st.cursorX / mapData.tilewidth);
+      const gridY = Math.floor(st.cursorY / mapData.tileheight);
+      if (gridX >= 0 && gridY >= 0 && gridX < mapData.gw && gridY < mapData.gh) {
+        const idx = gridY * mapData.gw + gridX;
+        // Check all tile layers in reverse order (top layer first)
+        for (let layerIdx = mapData.data.layers.length - 1; layerIdx >= 0; layerIdx--) {
+          const layer = mapData.data.layers[layerIdx];
+          if (layer.type === "tilelayer" && layer.data && layer.visible !== false) {
+            if (idx < layer.data.length) {
+              const rawTileId = layer.data[idx];
+              const tileId = rawTileId & 0x0FFFFFFF; // Remove rotation flags
+              if (tileId > 0) {
+                // Found a tile, create tooltip
+                const contents = [];
+                contents.push(["layer: " + (layer.name || "unnamed"), "#aaffaa"]);
+                contents.push(["grid: (" + gridX + "," + gridY + ")", "#aaaaff"]);
+                contents.push(["world: (" + Math.round(st.cursorX * 10) / 10 + "," + Math.round(st.cursorY * 10) / 10 + ")", "#aaaaff"]);
+                contents.push(["tile_id: " + tileId, "#999"]);
+                contents.push(["raw: 0x" + rawTileId.toString(16).toUpperCase().padStart(8, "0"), "#666"]);
+                
+                // Check if this tile has properties in the tileset
+                let tileObj = null;
+                for (const tileset of mapData.data.tilesets || []) {
+                  const firstgid = tileset.firstgid ?? 1;
+                  if (tileId >= firstgid && tileId < firstgid + (tileset.tilecount ?? 0)) {
+                    const localId = tileId - firstgid;
+                    tileObj = tileset.tiles?.find((t) => t.id === localId);
+                    break;
+                  }
+                }
+                
+                if (tileObj?.properties && Array.isArray(tileObj.properties)) {
+                  for (const prop of tileObj.properties) {
+                    contents.push(["  " + prop.name + ": " + prop.value, "#999"]);
+                  }
+                }
+                
+                newTooltips.set("tile_" + layerIdx, { contents });
+                break; // Only show topmost tile
+              }
+            }
+          }
+        }
+      }
+
       // Mob spawners
       for (const spawner of mapData.mobSpawners) {
         octx.save();
@@ -424,12 +493,26 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
 
         if (collision) {
           const contents = [];
+          contents.push(["[spawn_mobs]", "#ffaaff"]);
           contents.push(["rarity: " + rarityFromDiff(spawner.difficulty).toLowerCase(), spawner.color]);
-          if (!isNaN(spawner.difficulty)) contents.push(["difficulty:" + spawner.difficulty, "#fff"]);
-          if (!isNaN(spawner.density)) contents.push(["density:" + spawner.density, "#fff"]);
-          if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay:" + spawner.extraSpawnDelay, "#facbcb"]);
-          if (!isNaN(spawner.forceRarity)) contents.push(["force_rarity:" + spawner.forceRarity, "#facbcb"]);
-          if (!isNaN(spawner.team)) contents.push(["team:" + spawner.team, "#facbcb"]);
+          if (!isNaN(spawner.difficulty)) contents.push(["difficulty: " + spawner.difficulty, "#fff"]);
+          if (!isNaN(spawner.density)) contents.push(["density: " + spawner.density, "#fff"]);
+          if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay: " + spawner.extraSpawnDelay, "#facbcb"]);
+          if (!isNaN(spawner.forceRarity)) contents.push(["force_rarity: " + spawner.forceRarity, "#facbcb"]);
+          if (!isNaN(spawner.team)) contents.push(["team: " + spawner.team, "#facbcb"]);
+          contents.push(["pos: (" + Math.round(spawner.x * 10) / 10 + "," + Math.round(spawner.y * 10) / 10 + ")", "#aaaaff"]);
+          contents.push(["size: (" + Math.round(spawner.width * 10) / 10 + "x" + Math.round(spawner.height * 10) / 10 + ")", "#aaaaff"]);
+          contents.push(["id: " + spawner.id, "#999"]);
+          
+          // Add custom properties, excluding ones already shown
+          const customProps = getObjectProperties(spawner.rawObj).filter(
+            ([text]) => !text.includes("difficulty:") && !text.includes("density:") && !text.includes("extra_spawn_delay:") && 
+                        !text.includes("force_rarity:") && !text.includes("team:") && !text.includes("mobs:")
+          );
+          for (const prop of customProps) {
+            contents.push(prop);
+          }
+          
           const totalWeight = spawner.mobs.reduce((a, m) => a + m.chance, 0);
           const mobsWithFreq = totalWeight > 0
             ? spawner.mobs.map((m) => ({ ...m, chance: Math.round((m.chance / totalWeight) * 100) + "%" }))
@@ -455,8 +538,20 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
         octx.restore();
 
         if (collision) {
-          const contents = [["checkpoint", "#ccffcf"]];
-          if (!isNaN(cp.level)) contents.push(["level:" + cp.level, "#fff"]);
+          const contents = [["[checkpoint]", "#ccffcf"]];
+          if (!isNaN(cp.level)) contents.push(["level: " + cp.level, "#fff"]);
+          contents.push(["pos: (" + Math.round(cp.x * 10) / 10 + "," + Math.round(cp.y * 10) / 10 + ")", "#aaaaff"]);
+          contents.push(["size: (" + Math.round(cp.width * 10) / 10 + "x" + Math.round(cp.height * 10) / 10 + ")", "#aaaaff"]);
+          contents.push(["id: " + cp.id, "#999"]);
+          
+          // Add custom properties, excluding ones already shown
+          const customProps = getObjectProperties(cp.rawObj).filter(
+            ([text]) => !text.includes("level:")
+          );
+          for (const prop of customProps) {
+            contents.push(prop);
+          }
+          
           newTooltips.set(cp.id, { contents });
         }
       }
@@ -485,11 +580,63 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
         octx.restore();
 
         if (collision) {
-          const contents = [[warp.warpType, "#00ccff"]];
+          const contents = [["[" + warp.warpType + "]", "#00ccff"]];
           if (warp.name) contents.push(["name: " + warp.name, "#fff"]);
           if (warp.map) contents.push(["map: " + warp.map, "#aaffaa"]);
           if (warp.warpPoint) contents.push(["warp_point: " + warp.warpPoint, "#ffffaa"]);
+          contents.push(["pos: (" + Math.round(warp.x * 10) / 10 + "," + Math.round(warp.y * 10) / 10 + ")", "#aaaaff"]);
+          contents.push(["size: (" + Math.round(warp.width * 10) / 10 + "x" + Math.round(warp.height * 10) / 10 + ")", "#aaaaff"]);
+          contents.push(["id: " + warp.id, "#999"]);
+          
+          // Add custom properties, excluding ones already shown
+          const customProps = getObjectProperties(warp.rawObj).filter(
+            ([text]) => !text.includes("name:") && !text.includes("map:") && !text.includes("warp_point:")
+          );
+          for (const prop of customProps) {
+            contents.push(prop);
+          }
+          
           newTooltips.set(warp.id, { contents });
+        }
+      }
+
+      // Unknown object types
+      if (mapData.unknownObjects) {
+        for (const obj of mapData.unknownObjects) {
+          octx.save();
+          octx.translate(obj.x, obj.y);
+          octx.fillStyle = "#666666";
+          octx.strokeStyle = "#999999";
+          octx.lineWidth = lw;
+          octx.beginPath();
+
+          const collision = octx.isPointInPath(obj.points, st.cursorX, st.cursorY);
+          octx.globalAlpha = collision ? 0.1 : 0.0;
+          octx.fill(obj.points);
+          octx.globalAlpha = 1.0;
+          octx.stroke(obj.points);
+          octx.restore();
+
+          if (collision) {
+            const contents = [["[" + (obj.type || "unknown") + "]", "#ccccff"]];
+            if (obj.name) contents.push(["name: " + obj.name, "#fff"]);
+            contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
+            contents.push(["size: (" + Math.round(obj.width * 10) / 10 + "x" + Math.round(obj.height * 10) / 10 + ")", "#aaaaff"]);
+            contents.push(["id: " + obj.id, "#999"]);
+            
+            // Add all properties to tooltip
+            const allProps = getObjectProperties(obj.rawObj);
+            for (const prop of allProps) {
+              contents.push(prop);
+            }
+            
+            // If no properties, show a message
+            if (allProps.length === 0) {
+              contents.push(["(no properties)", "#666"]);
+            }
+            
+            newTooltips.set("unknown_" + obj.id, { contents });
+          }
         }
       }
 
@@ -509,24 +656,52 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       const chanceH = 20; // space below icon for chance label
       const cellW = rw + pad;
       const cellH = rh + chanceH + pad;
-      const tipW = cols * cellW + pad * 2; // 3*(68+8)+16 = 244
+      const tipWMobs = cols * cellW + pad * 2; // 3*(68+8)+16 = 244 (width for tooltips with mobs)
+      const tipWNoMobs = 320; // wider width for tile/zone tooltips without mobs
 
       const bgpath = new Path2D();
       bgpath.roundRect(0, 0, rw, rh, 6);
 
-      // Compute dynamic height for each tooltip
-      const getTipHeight = (tooltip) => {
-        const nLines = tooltip.contents.length;
+      // Helper function to wrap text across multiple lines
+      const wrapText = (text, maxWidth) => {
+        uctx.font = `${fontSize}px GameMono, monospace`;
+        const lines = [];
+        let currentLine = "";
+        const words = text.split(" ");
+        
+        for (const word of words) {
+          const testLine = currentLine ? currentLine + " " + word : word;
+          if (uctx.measureText(testLine).width <= maxWidth) {
+            currentLine = testLine;
+          } else {
+            if (currentLine) lines.push(currentLine);
+            currentLine = word;
+          }
+        }
+        if (currentLine) lines.push(currentLine);
+        return lines.length > 0 ? lines : [text]; // Return original text if wrapping fails
+      };
+
+      // Compute dynamic height and width for each tooltip
+      const getTipDimensions = (tooltip) => {
+        const maxTextW = tooltip.mobs ? tipWMobs - pad * 2 : tipWNoMobs - pad * 2;
+        let totalLines = 0;
+        for (const [text] of tooltip.contents) {
+          const wrapped = wrapText(text, maxTextW);
+          totalLines += wrapped.length;
+        }
         const nMobs = tooltip.mobs?.length ?? 0;
         const nRows = nMobs > 0 ? Math.ceil(nMobs / cols) : 0;
-        return pad + nLines * lineH + (nRows > 0 ? pad + nRows * cellH : 0) + pad;
+        const h = pad + totalLines * lineH + (nRows > 0 ? pad + nRows * cellH : 0) + pad;
+        const w = nMobs > 0 ? tipWMobs : tipWNoMobs;
+        return { w, h };
       };
 
       const maxTipH = newTooltips.size > 0
-        ? Math.max(...[...newTooltips.values()].map(getTipHeight))
+        ? Math.max(...[...newTooltips.values()].map(t => getTipDimensions(t).h))
         : 0;
 
-      const totalTipW = newTooltips.size * (tipW + pad) - pad;
+      const totalTipW = newTooltips.size * (Math.max(tipWMobs, tipWNoMobs) + pad) - pad;
       const tooltipX = st.cursorRx - totalTipW * 0.5;
       const rx = Math.max(pad, Math.min(tooltipX, st.viewW - totalTipW - pad));
       const ry = Math.max(pad, Math.min(st.cursorRy, st.viewH - maxTipH - pad));
@@ -535,7 +710,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
       uctx.translate(rx, ry);
 
       for (const [, tooltip] of newTooltips) {
-        const tipH = getTipHeight(tooltip);
+        const { w: tipW, h: tipH } = getTipDimensions(tooltip);
         const maxTextW = tipW - pad * 2;
 
         uctx.save();
@@ -556,17 +731,16 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
         uctx.textBaseline = "top";
         uctx.translate(pad, pad);
 
-        // Content lines — truncate with ellipsis if too wide
+        // Content lines — wrap to next line instead of truncating
         for (const [text, fill] of tooltip.contents) {
           uctx.font = `${fontSize}px GameMono, monospace`;
-          let display = text;
-          while (display.length > 4 && uctx.measureText(display).width > maxTextW) {
-            display = display.slice(0, -4) + "\u2026";
-          }
+          const wrappedLines = wrapText(text, maxTextW);
           uctx.fillStyle = fill;
-          uctx.strokeText(display, 0, 0);
-          uctx.fillText(display, 0, 0);
-          uctx.translate(0, lineH);
+          for (const line of wrappedLines) {
+            uctx.strokeText(line, 0, 0);
+            uctx.fillText(line, 0, 0);
+            uctx.translate(0, lineH);
+          }
         }
 
         // Mob icons
