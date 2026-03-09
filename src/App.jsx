@@ -41,7 +41,6 @@ export default function App() {
 
   const [sprites, setSprites] = useState(null);
   const [mobSpritesState, setMobSpritesState] = useState(null);
-  const [warpSprite, setWarpSprite] = useState(null);
   const [tileFiles, setTileFiles] = useState([]);
   const [rawTileset, setRawTileset] = useState("");
   const [rawMapList, setRawMapList] = useState("");
@@ -144,15 +143,7 @@ export default function App() {
         }
         setMapData(data);
 
-        // 7. Load warp sprite
-        try {
-          const warpImg = new Image();
-          warpImg.src = "/warp.svg";
-          await new Promise((resolve) => { warpImg.onload = resolve; warpImg.onerror = resolve; });
-          if (!cancelled) setWarpSprite(warpImg);
-        } catch { /* skip */ }
-
-        // 8. Load mob sprites in background
+        // 7. Load mob sprites in background
         setStatus("Loading mob sprites...");
         const mSprites = new Map();
         for (const [id] of mobmap) {
@@ -326,7 +317,6 @@ export default function App() {
             mapData={mapData}
             sprites={sprites}
             mobSprites={mobSpritesState}
-            warpSprite={warpSprite}
           />
         )}
         {!loading && currentFile?.type === "tile" && sprites && (

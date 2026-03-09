@@ -6,7 +6,7 @@ import { darkened } from "../lib/utils.js";
 import { RarityColor, rarityFromDiff } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
 
-export default function MapCanvas({ mapData, sprites, mobSprites, warpSprite }) {
+export default function MapCanvas({ mapData, sprites, mobSprites }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const stateRef = useRef(null);
@@ -462,7 +462,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, warpSprite }) 
       }
 
       // Warps
-      const warpRadius = 100;
+      const warpRadius = 80;
       for (const warp of mapData.warps) {
         octx.save();
         octx.translate(warp.x, warp.y);
@@ -473,13 +473,13 @@ export default function MapCanvas({ mapData, sprites, mobSprites, warpSprite }) 
         const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
 
         octx.globalAlpha = 1;
-        if (warp.warpType === "warp" && warpSprite) {
-          octx.drawImage(warpSprite, -warpRadius, -warpRadius, warpRadius * 2, warpRadius * 2);
+        if (warp.warpType === "warp") {
+          octx.strokeStyle = collision ? "#00ccff" : "#ffffff";
         } else {
-          octx.strokeStyle = warp.warpType === "warp" ? "#000000" : "#ffffff";
-          octx.lineWidth = 40;
-          octx.stroke(warpPath);
+          octx.strokeStyle = "#000000";
         }
+        octx.lineWidth = 40;
+        octx.stroke(warpPath);
         octx.globalAlpha = 1.0;
 
         octx.restore();
@@ -652,7 +652,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, warpSprite }) 
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", onContextMenu);
     };
-  }, [mapData, sprites, mobSprites, warpSprite, initState]);
+  }, [mapData, sprites, mobSprites, initState]);
 
   const handleZoomIn = () => {
     const state = stateRef.current;
