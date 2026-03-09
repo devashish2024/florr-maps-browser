@@ -150,9 +150,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
 
     // Auto-zoom to starting checkpoint
     const glideToCheckpoint = () => {
-      const goTo = (x, y) => {
-        st.camera.fov = 0.25;
-        st.camera.fovR = 0.25;
+      const goTo = (x, y, fov = 0.25) => {
+        st.camera.fov = fov;
+        st.camera.fovR = fov;
         st.camera.x = x;
         st.camera.y = y;
         st.camera.rx = x;
@@ -161,6 +161,16 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
         updateGameScale(st.camera.fovR);
         clampViewerCenter();
       };
+
+      // Map-specific overrides
+      if (mapKey === "hel" || mapKey === "br/hel") {
+        goTo(mapData.width * 0.5, mapData.height * 0.5, minFov());
+        return;
+      }
+      if (mapKey === "jungle") {
+        goTo(15000, 10400);
+        return;
+      }
 
       // 1. checkpoint level 0 — middle if exactly 3, else first
       const level0 = mapData.checkPoints.filter((c) => c.level === 0);
