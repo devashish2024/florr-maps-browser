@@ -1,7 +1,8 @@
-import { withFlorProxy } from "./proxy.js";
+import { fetchTextWithMeta } from "./proxy.js";
 import { toMapName } from "./maplist.js";
 
 const MAPS_BASE_URL = "https://florr.io/static/maps";
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // In-memory cache: mapId -> raw TMJ string
 const mapCache = new Map();
@@ -13,15 +14,15 @@ export const ensureMapLoaded = async (id, onStatus) => {
 
   onStatus?.(`Loading map ${toMapName(id)}...`);
 
-  const url = withFlorProxy(`${MAPS_BASE_URL}/${id}.tmj`);
+  const url = `${MAPS_BASE_URL}/${id}.tmj`;
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) return false;
-    const raw = await response.text();
+    const { text: raw, lastFetched } = await fetchTextWithMeta(url, false, {
+      ttlMs: ONE_WEEK_MS,
+      cacheKey: `map:${id}`,
+    });
     mapCache.set(id, raw);
-    const lf = response.headers.get("X-Last-Fetched");
-    mapLastFetched.set(id, lf || new Date().toISOString());
+    mapLastFetched.set(id, lastFetched || new Date().toISOString());
     return true;
   } catch {
     return false;
@@ -32,15 +33,15 @@ export const refreshMap = async (id) => {
   mapCache.delete(id);
   mapLastFetched.delete(id);
 
-  const url = withFlorProxy(`${MAPS_BASE_URL}/${id}.tmj`, true);
+  const url = `${MAPS_BASE_URL}/${id}.tmj`;
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) return false;
-    const raw = await response.text();
+    const { text: raw, lastFetched } = await fetchTextWithMeta(url, true, {
+      ttlMs: ONE_WEEK_MS,
+      cacheKey: `map:${id}`,
+    });
     mapCache.set(id, raw);
-    const lf = response.headers.get("X-Last-Fetched");
-    mapLastFetched.set(id, lf || new Date().toISOString());
+    mapLastFetched.set(id, lastFetched || new Date().toISOString());
     return true;
   } catch {
     return false;

@@ -2,6 +2,7 @@ import { fetchText, fetchTextWithMeta } from "./proxy.js";
 
 const TILESET_URL = "https://florr.io/static/tiles/tileset.tsj";
 const TILES_BASE_URL = "https://florr.io/static/tiles";
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 let tilesetLastFetched = null;
 
@@ -10,7 +11,10 @@ export const getTilesetLastFetched = () => tilesetLastFetched;
 export const loadTiles = async (onStatus, skipCache) => {
   onStatus?.("Loading tileset...");
 
-  const { text: raw, lastFetched } = await fetchTextWithMeta(TILESET_URL, skipCache);
+  const { text: raw, lastFetched } = await fetchTextWithMeta(TILESET_URL, skipCache, {
+    ttlMs: ONE_YEAR_MS,
+    cacheKey: "tileset.tsj",
+  });
   tilesetLastFetched = lastFetched;
   const tileset = JSON.parse(raw);
 
@@ -26,7 +30,10 @@ export const loadTiles = async (onStatus, skipCache) => {
   let done = 0;
   for (const image of uniqueImages) {
     const url = `${TILES_BASE_URL}/${image}`;
-    const svg = await fetchText(url, skipCache);
+    const svg = await fetchText(url, skipCache, {
+      ttlMs: ONE_YEAR_MS,
+      cacheKey: `tile:${image}`,
+    });
     fetchedSvg.set(image, svg);
     done++;
     onStatus?.(`Loading tiles... ${done}/${uniqueImages.length}`);

@@ -17,6 +17,7 @@ import "./App.css";
 const SPECIAL_IDS = new Set([93, 115]);
 
 const MOB_SVG_BASE = "https://florr.io/mobs";
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -148,7 +149,10 @@ export default function App() {
         const mSprites = new Map();
         for (const [id] of mobmap) {
           try {
-            const svg = await fetchText(`${MOB_SVG_BASE}/${id}.svg`);
+            const svg = await fetchText(`${MOB_SVG_BASE}/${id}.svg`, false, {
+              ttlMs: ONE_YEAR_MS,
+              cacheKey: `mob:${id}`,
+            });
             const canvas = svgToCanvas(svg, 256, 256);
             if (canvas) mSprites.set(id, canvas);
           } catch {
