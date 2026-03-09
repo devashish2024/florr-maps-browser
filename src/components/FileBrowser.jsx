@@ -322,7 +322,7 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                     onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
                   />
                 ))}
-              
+
               {/* maps/archived/ folder - nested under maps */}
               {mapsExpanded && archivedMapList.length > 0 && (
                 <>

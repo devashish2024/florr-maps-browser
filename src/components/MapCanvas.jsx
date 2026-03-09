@@ -449,7 +449,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
                 contents.push(["world: (" + Math.round(st.cursorX * 10) / 10 + "," + Math.round(st.cursorY * 10) / 10 + ")", "#aaaaff"]);
                 contents.push(["tile_id: " + tileId, "#999"]);
                 contents.push(["raw: 0x" + rawTileId.toString(16).toUpperCase().padStart(8, "0"), "#666"]);
-                
+
                 // Check if this tile has properties in the tileset
                 let tileObj = null;
                 for (const tileset of mapData.data.tilesets || []) {
@@ -460,13 +460,13 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
                     break;
                   }
                 }
-                
+
                 if (tileObj?.properties && Array.isArray(tileObj.properties)) {
                   for (const prop of tileObj.properties) {
                     contents.push(["  " + prop.name + ": " + prop.value, "#999"]);
                   }
                 }
-                
+
                 newTooltips.set("tile_" + layerIdx, { contents });
                 break; // Only show topmost tile
               }
@@ -503,16 +503,16 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           contents.push(["pos: (" + Math.round(spawner.x * 10) / 10 + "," + Math.round(spawner.y * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["size: (" + Math.round(spawner.width * 10) / 10 + "x" + Math.round(spawner.height * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["id: " + spawner.id, "#999"]);
-          
+
           // Add custom properties, excluding ones already shown
           const customProps = getObjectProperties(spawner.rawObj).filter(
-            ([text]) => !text.includes("difficulty:") && !text.includes("density:") && !text.includes("extra_spawn_delay:") && 
-                        !text.includes("force_rarity:") && !text.includes("team:") && !text.includes("mobs:")
+            ([text]) => !text.includes("difficulty:") && !text.includes("density:") && !text.includes("extra_spawn_delay:") &&
+              !text.includes("force_rarity:") && !text.includes("team:")
           );
           for (const prop of customProps) {
             contents.push(prop);
           }
-          
+
           const totalWeight = spawner.mobs.reduce((a, m) => a + m.chance, 0);
           const mobsWithFreq = totalWeight > 0
             ? spawner.mobs.map((m) => ({ ...m, chance: Math.round((m.chance / totalWeight) * 100) + "%" }))
@@ -543,7 +543,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           contents.push(["pos: (" + Math.round(cp.x * 10) / 10 + "," + Math.round(cp.y * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["size: (" + Math.round(cp.width * 10) / 10 + "x" + Math.round(cp.height * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["id: " + cp.id, "#999"]);
-          
+
           // Add custom properties, excluding ones already shown
           const customProps = getObjectProperties(cp.rawObj).filter(
             ([text]) => !text.includes("level:")
@@ -551,7 +551,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           for (const prop of customProps) {
             contents.push(prop);
           }
-          
+
           newTooltips.set(cp.id, { contents });
         }
       }
@@ -587,7 +587,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           contents.push(["pos: (" + Math.round(warp.x * 10) / 10 + "," + Math.round(warp.y * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["size: (" + Math.round(warp.width * 10) / 10 + "x" + Math.round(warp.height * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["id: " + warp.id, "#999"]);
-          
+
           // Add custom properties, excluding ones already shown
           const customProps = getObjectProperties(warp.rawObj).filter(
             ([text]) => !text.includes("name:") && !text.includes("map:") && !text.includes("warp_point:")
@@ -595,7 +595,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           for (const prop of customProps) {
             contents.push(prop);
           }
-          
+
           newTooltips.set(warp.id, { contents });
         }
       }
@@ -623,18 +623,18 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
             contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
             contents.push(["size: (" + Math.round(obj.width * 10) / 10 + "x" + Math.round(obj.height * 10) / 10 + ")", "#aaaaff"]);
             contents.push(["id: " + obj.id, "#999"]);
-            
+
             // Add all properties to tooltip
             const allProps = getObjectProperties(obj.rawObj);
             for (const prop of allProps) {
               contents.push(prop);
             }
-            
+
             // If no properties, show a message
             if (allProps.length === 0) {
               contents.push(["(no properties)", "#666"]);
             }
-            
+
             newTooltips.set("unknown_" + obj.id, { contents });
           }
         }
@@ -668,8 +668,52 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
         const lines = [];
         let currentLine = "";
         const words = text.split(" ");
-        
-        for (const word of words) {
+
+        for (let word of words) {
+          // Check if word itself is too long and needs to be broken on delimiters
+          while (word && uctx.measureText(word).width > maxWidth) {
+            let broken = false;
+            
+            // Try breaking on semicolons (for mobs lists)
+            if (word.includes(";")) {
+              const parts = word.split(";");
+              let segment = "";
+              for (let i = 0; i < parts.length; i++) {
+                const nextSegment = segment ? segment + ";" + parts[i] : parts[i];
+                if (uctx.measureText(nextSegment).width <= maxWidth) {
+                  segment = nextSegment;
+                } else {
+                  // Segment won't fit, finalize current and start new
+                  if (segment) {
+                    if (currentLine) lines.push(currentLine);
+                    currentLine = segment + ";";
+                    segment = parts[i];
+                  } else {
+                    // Single part is too long, force it
+                    if (currentLine) lines.push(currentLine);
+                    currentLine = parts[i] + (i < parts.length - 1 ? ";" : "");
+                  }
+                  broken = true;
+                }
+              }
+              if (segment) {
+                word = segment;
+              } else {
+                word = "";
+              }
+              break;
+            } else {
+              // No semicolon, just force word to new line
+              if (currentLine) lines.push(currentLine);
+              currentLine = word;
+              word = "";
+              break;
+            }
+          }
+
+          if (!word) continue;
+
+          // Try to add word to current line
           const testLine = currentLine ? currentLine + " " + word : word;
           if (uctx.measureText(testLine).width <= maxWidth) {
             currentLine = testLine;
@@ -679,7 +723,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites }) {
           }
         }
         if (currentLine) lines.push(currentLine);
-        return lines.length > 0 ? lines : [text]; // Return original text if wrapping fails
+        return lines.length > 0 ? lines : [text];
       };
 
       // Compute dynamic height and width for each tooltip
