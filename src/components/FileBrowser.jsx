@@ -311,27 +311,28 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
               {/* maps/archived/ folder - nested under maps */}
               {mapsExpanded && archivedMapList.length > 0 && (
                 <>
-                  <FolderItem
-                    name="archived"
-                    expanded={mapsArchivedExpanded}
-                    onToggle={() => setMapsArchivedExpanded(!mapsArchivedExpanded)}
-                    onContextMenu={(e) => openFolderContextMenu(e, "archived", archivedMapList.filter(m => !m.disabled).map(m => ({ name: `${m.id}.tmj`, url: `${window.location.origin}/archived_maps/${m.id}.tmj` })))}
-                    style={{ marginLeft: 18 }}
-                  />
-                  {mapsArchivedExpanded &&
-                    archivedMapList.map((m) => (
-                      <FileItem
-                        key={m.id}
-                        icon={m.disabled ? "⚠️" : "🗺️"}
-                        name={`${m.id}.tmj`}
-                        label={m.disabled ? `${m.name} (error)` : m.name}
-                        indent={2}
-                        active={currentFile?.type === "archived_map" && currentFile?.id === m.id}
-                        disabled={m.disabled}
-                        onClick={() => handleSelect({ type: "archived_map", id: m.id })}
-                        onContextMenu={(e) => openContextMenu(e, { type: "archived_map", id: m.id })}
-                      />
-                    ))}
+                  <div style={{ marginLeft: 18 }}>
+                    <FolderItem
+                      name="archived"
+                      expanded={mapsArchivedExpanded}
+                      onToggle={() => setMapsArchivedExpanded(!mapsArchivedExpanded)}
+                      onContextMenu={(e) => openFolderContextMenu(e, "archived", archivedMapList.filter(m => !m.disabled).map(m => ({ name: `${m.id}.tmj`, url: `${window.location.origin}/archived_maps/${m.id}.tmj` })))}
+                    />
+                    {mapsArchivedExpanded &&
+                      archivedMapList.map((m) => (
+                        <FileItem
+                          key={m.id}
+                          icon={m.disabled ? "⚠️" : "🗺️"}
+                          name={`${m.id}.tmj`}
+                          label={m.disabled ? `${m.name} (error)` : m.name}
+                          indent={2}
+                          active={currentFile?.type === "archived_map" && currentFile?.id === m.id}
+                          disabled={m.disabled}
+                          onClick={() => handleSelect({ type: "archived_map", id: m.id })}
+                          onContextMenu={(e) => openContextMenu(e, { type: "archived_map", id: m.id })}
+                        />
+                      ))}
+                  </div>
                 </>
               )}
               {/* Render the rest of the maps after archived/ */}
