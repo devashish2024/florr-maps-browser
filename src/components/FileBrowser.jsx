@@ -308,21 +308,6 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                 onToggle={() => setMapsExpanded(!mapsExpanded)}
                 onContextMenu={(e) => openFolderContextMenu(e, "maps", sortedMaps.filter(m => !m.disabled).map(m => ({ name: `${m.id}.tmj`, url: `https://florr.io/static/maps/${m.id}.tmj` })))}
               />
-              {mapsExpanded &&
-                sortedMaps.map((m) => (
-                  <FileItem
-                    key={m.id}
-                    icon={m.disabled ? "⚠️" : "🗺️"}
-                    name={`${m.id}.tmj`}
-                    label={m.disabled ? `${m.name} (error)` : m.name}
-                    indent={1}
-                    active={currentFile?.type === "map" && currentFile?.id === m.id}
-                    disabled={m.disabled}
-                    onClick={() => handleSelect({ type: "map", id: m.id })}
-                    onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
-                  />
-                ))}
-
               {/* maps/archived/ folder - nested under maps */}
               {mapsExpanded && archivedMapList.length > 0 && (
                 <>
@@ -331,6 +316,7 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                     expanded={mapsArchivedExpanded}
                     onToggle={() => setMapsArchivedExpanded(!mapsArchivedExpanded)}
                     onContextMenu={(e) => openFolderContextMenu(e, "archived", archivedMapList.filter(m => !m.disabled).map(m => ({ name: `${m.id}.tmj`, url: `${window.location.origin}/archived_maps/${m.id}.tmj` })))}
+                    style={{ marginLeft: 18 }}
                   />
                   {mapsArchivedExpanded &&
                     archivedMapList.map((m) => (
@@ -348,6 +334,20 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                     ))}
                 </>
               )}
+              {/* Render the rest of the maps after archived/ */}
+              {mapsExpanded && sortedMaps.map((m) => (
+                <FileItem
+                  key={m.id}
+                  icon={m.disabled ? "⚠️" : "🗺️"}
+                  name={`${m.id}.tmj`}
+                  label={m.disabled ? `${m.name} (error)` : m.name}
+                  indent={1}
+                  active={currentFile?.type === "map" && currentFile?.id === m.id}
+                  disabled={m.disabled}
+                  onClick={() => handleSelect({ type: "map", id: m.id })}
+                  onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
+                />
+              ))}
             </>
           )}
 
