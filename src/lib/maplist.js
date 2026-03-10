@@ -7,7 +7,7 @@ const MAP_ORDER = [
   "Garden", "Desert", "Ocean", "Jungle", "Ant Hell", "Sewers", "Hel",
   "Factory", "Training Grounds", "Crystal Room", "Worm", "Ant Hole",
   "Rift: Garden", "Rift: Ant Hell", "Rift: Factory", "Rift: Hel",
-  "Rift: Ocean", "Rift: Sewers", "Rift: Victory", "Pyramid",
+  "Rift: Ocean", "Rift: Sewers", "Rift: Victory", "Rift: Pyramid", "Pyramid"
 ];
 const MAP_ORDER_INDEX = new Map(MAP_ORDER.map((name, i) => [name, i]));
 
@@ -59,6 +59,7 @@ export const loadMapList = async (onStatus) => {
     if (id) ids.add(id);
   }
 
+  ids.add(`br/${PYRAMID_MAP_ID}`);
   ids.add(PYRAMID_MAP_ID);
 
   // Auto-discover BR (Rift) variants for every base map
