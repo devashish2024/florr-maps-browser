@@ -582,14 +582,14 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           if (!isNaN(spawner.difficulty)) contents.push(["difficulty: " + spawner.difficulty, "#fff"]);
           if (!isNaN(spawner.density)) contents.push(["density: " + spawner.density, "#fff"]);
           if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay: " + spawner.extraSpawnDelay, "#facbcb"]);
-          
+
           // Color force_rarity by its rarity level
           if (!isNaN(spawner.forceRarity)) {
             const forceRarityText = "force_rarity: " + spawner.forceRarity;
             const rarityColored = colorRarityInText(forceRarityText);
             contents.push(rarityColored || [forceRarityText, "#facbcb"]);
           }
-          
+
           if (!isNaN(spawner.team)) contents.push(["team: " + spawner.team, "#facbcb"]);
           if (spawner.biomeName) contents.push(["biome: " + spawner.biomeName, "#ffccaa"]);
           contents.push(["pos: (" + Math.round(spawner.x * 10) / 10 + "," + Math.round(spawner.y * 10) / 10 + ")", "#aaaaff"]);
@@ -610,7 +610,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           // For regular zones: calculate percentages normally
           const weightedMobs = spawner.mobs.filter(m => m.isWeighted);
           const totalWeight = weightedMobs.reduce((a, m) => a + m.chance, 0);
-          
+
           const mobsWithFreq = spawner.mobs.map((m) => {
             let chance;
             if (m.isUnknown) {
@@ -624,7 +624,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
             }
             return { ...m, chance };
           });
-          
+
           newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq, zoneColor: spawner.color });
         }
       }

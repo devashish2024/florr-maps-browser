@@ -15,26 +15,26 @@ const getPropertyStr = (name, props) => {
 
 const extractBiomeMobs = (mobstr) => {
   if (!mobstr) return { mobs: [], isBiome: false, biomeName: null };
-  
+
   const cleanStr = mobstr?.toLowerCase().trim();
-  
+
   // Check for biome format: "biome" or "biome,mob1=weight1,mob2=weight2,..."
   const parts = cleanStr.split(",").map(p => p.trim());
   const potentialBiome = parts[0];
-  
+
   for (const [biomeKey, biomeConfig] of Object.entries(biomeSpawns)) {
     if (potentialBiome === biomeKey) {
       // Parse weight overrides (e.g., "ladybug=2,hornet=3")
       const weightedMobs = new Map();
       let totalWeight = 0;
-      
+
       for (let i = 1; i < parts.length; i++) {
         const override = parts[i];
         if (override.includes("=")) {
           const [mobName, weightStr] = override.split("=");
           const cleanMobName = mobName.trim();
           const weight = parseFloat(weightStr.trim()) || 0;
-          
+
           const id = revmap.get(cleanMobName) ?? -1;
           if (id !== -1) {
             weightedMobs.set(cleanMobName, { id, chance: weight, isWeighted: true });
@@ -42,10 +42,10 @@ const extractBiomeMobs = (mobstr) => {
           }
         }
       }
-      
+
       // Build final mobs array
       const biomeMobs = [];
-      
+
       // Add biome mobs (with ? for unknown ones, or weighted ones)
       for (const mobName of biomeConfig.mobs) {
         const id = revmap.get(mobName) ?? -1;
@@ -68,18 +68,18 @@ const extractBiomeMobs = (mobstr) => {
           }
         }
       }
-      
+
       // Add any weighted mobs not in the biome (shouldn't happen, but just in case)
       for (const [mobName, mobData] of weightedMobs) {
         if (!biomeConfig.mobs.includes(mobName)) {
           biomeMobs.push(mobData);
         }
       }
-      
+
       return { mobs: biomeMobs, isBiome: true, biomeName: biomeConfig.displayName, totalWeight };
     }
   }
-  
+
   // Fall back to parsing mobs string (mob:chance;mob:chance format)
   const mobs = mobstr
     ?.replaceAll("\n", "")
@@ -92,7 +92,7 @@ const extractBiomeMobs = (mobstr) => {
       return { id, chance: parseFloat(parts[1]) || 0 };
     })
     .filter((mob) => mob !== null) ?? [];
-  
+
   return { mobs, isBiome: false, biomeName: null };
 };
 
