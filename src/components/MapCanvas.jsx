@@ -59,6 +59,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
       cameraHeight: 1,
       totalScale: 1,
       wrapAlpha: 1.0,
+      warpHoverMap: new Map(), // Map of warp.id -> timestamp when press started
+      warpPressedId: null, // ID of warp currently being pressed (mousedown)
+      warpPressedDown: false, // Whether mouse button 0 is down
     };
     return stateRef.current;
   }, []);
@@ -285,14 +288,22 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
     };
 
     const onMouseDown = (e) => {
-      if (e.button === 0) st.grab = true;
+      if (e.button === 0) {
+        st.grab = true;
+        st.warpPressedDown = true;
+      }
       if (e.button === 1) {
         e.preventDefault();
         st.camera.fov = 0.25;
       }
     };
     const onMouseUp = (e) => {
-      if (e.button === 0) st.grab = false;
+      if (e.button === 0) {
+        st.grab = false;
+        st.warpPressedDown = false;
+        st.warpPressedId = null;
+        st.warpHoverMap.clear();
+      }
     };
 
     const onTouchStart = (e) => {
@@ -666,6 +677,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
 
       // Warps
       const warpRadius = 80;
+      const warpFillDuration = 3000; // 3 seconds in milliseconds
+      const currentTime = performance.now();
+      
       for (const warp of mapData.warps) {
         octx.save();
         octx.translate(warp.x, warp.y);
@@ -675,15 +689,64 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
 
         const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
 
+        // Set pressed warp ID if this warp is colliding and mouse is down
+        if (collision && st.warpPressedDown && warp.warpType === "warp") {
+          st.warpPressedId = warp.id;
+        }
+
+        // Track press state - only advance progress if both colliding AND pressed
+        let pressProgress = 0;
+        const isPressed = st.warpPressedId === warp.id;
+        
+        if (collision && isPressed && warp.warpType === "warp") {
+          if (!st.warpHoverMap.has(warp.id)) {
+            st.warpHoverMap.set(warp.id, currentTime);
+          }
+          const pressStartTime = st.warpHoverMap.get(warp.id);
+          const elapsedTime = currentTime - pressStartTime;
+          pressProgress = Math.min(elapsedTime / warpFillDuration, 1.0);
+          
+          // Trigger alert when complete
+          if (pressProgress >= 1.0) {
+            alert("hello");
+            st.warpHoverMap.delete(warp.id); // Reset after activation
+            st.warpPressedId = null; // Clear pressed state
+          }
+        } else {
+          // Not pressed anymore - clear press state
+          st.warpHoverMap.delete(warp.id);
+        }
+
         octx.globalAlpha = 1;
         if (warp.warpType === "warp") {
-          octx.strokeStyle = collision ? "#00ccff" : "#ffffff";
+          octx.strokeStyle = "#ffffff"; // Base white stroke
+          octx.lineWidth = 40;
+          octx.stroke(warpPath);
+          
+          // Add light cyan fill on hover
+          if (collision) {
+            octx.globalAlpha = 0.2;
+            octx.strokeStyle = "#00ccff";
+            octx.lineWidth = 40;
+            octx.stroke(warpPath);
+            octx.globalAlpha = 1.0;
+          }
         } else {
           octx.strokeStyle = "#000000";
+          octx.lineWidth = 40;
+          octx.stroke(warpPath);
         }
-        octx.lineWidth = 40;
-        octx.stroke(warpPath);
-        octx.globalAlpha = 1.0;
+
+        // Draw progress fill arc (only for warp type and when pressed)
+        if (warp.warpType === "warp" && pressProgress > 0) {
+          octx.strokeStyle = "#00ccff";
+          octx.lineWidth = 40;
+          const startAngle = -Math.PI / 2; // Start from top
+          const endAngle = startAngle + (Math.PI * 2 * pressProgress);
+          const progressPath = new Path2D();
+          progressPath.arc(0, 0, warpRadius, startAngle, endAngle);
+          octx.stroke(progressPath);
+        }
 
         octx.restore();
 
