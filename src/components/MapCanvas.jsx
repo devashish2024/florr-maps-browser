@@ -263,8 +263,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         st.camera.rx = mapData.width * 0.5;
         st.camera.ry = mapData.height * 0.5;
         // Start zoomed out (0.125) and animate to the target zoom level (0.25).
-        st.camera.fov = 0.25;
-        st.camera.fovR = 0.125;
+        st.camera.fovR = 0.25;
+        st.camera.fov = 0.125;
         clampFov();
         updateGameScale(st.camera.fovR);
         clampViewerCenter();
