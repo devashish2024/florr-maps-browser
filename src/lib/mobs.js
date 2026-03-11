@@ -32,22 +32,67 @@ for (const [id, sid] of mobmap) {
 export const biomeSpawns = {
   garden: {
     displayName: "garden",
-    mobs: ["rock", "ladybug", "ant_hole", "spider", "dandelion", "bee", "hornet", "bumble_bee", "centipede"]
+    mobs: [
+      "hornet",
+      "spider",
+      "centipede",
+      "bumble_bee",
+      "ladybug",
+      "dandelion",
+      "bee",
+      "ant_hole",
+      "rock",
+    ]
   },
   desert: {
     displayName: "desert",
-    mobs: ["cactus", "beetle", "beetle_nazar", "scorpion", "ladybug_shiny", "fire_ant_burrow", "sandstorm", "centipede_desert"]
+    mobs: [
+      "scorpion",
+      "beetle",
+      "sandstorm",
+      "centipede_desert",
+      "cactus",
+      "beetle_nazar",
+      "fire_ant_burrow",
+      "ladybug_shiny",
+    ]
   },
   ocean: {
     displayName: "ocean",
-    mobs: ["bubble", "sponge", "shell", "jellyfish", "starfish", "crab", "leech"]
+    mobs: [
+      "jellyfish",
+      "crab",
+      "starfish",
+      "shell",
+      "leech",
+      "bubble",
+      "sponge",
+    ]
   },
   jungle: {
     displayName: "jungle",
-    mobs: ["bush", "wasp", "leafbug", "leafbug_shiny", "mantis", "termite_mound", "ladybug_dark", "centipede_evil", "firefly", "firefly_magic"]
+    mobs: [
+      "wasp",
+      "mantis",
+      "leafbug",
+      "centipede_evil",
+      "ladybug_dark",
+      "bush",
+      "firefly",
+      "termite_mound",
+      "firefly_magic",
+      "leafbug_shiny",
+    ]
   },
   sewers: {
     displayName: "sewers",
-    mobs: ["fly", "moth", "spider", "roach", "garbage", "silverfish"]
+    mobs: [
+      "fly",
+      "spider",
+      "garbage",
+      "silverfish",
+      "roach",
+      "moth",
+    ]
   }
 };
