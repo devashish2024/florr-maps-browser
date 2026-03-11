@@ -87,11 +87,17 @@ export const findWarpPointInMap = (mapId, warpPointName) => {
       if (!layer.objects) continue;
       for (const obj of layer.objects) {
         if ((obj.type === "warp_destination" || obj.type === "warp") && obj.name === warpPointName) {
-          // Apply the same 0.75 scale that tiled.js uses
-          return { x: obj.x * 0.75, y: obj.y * 0.75 };
+          // Return center of the warp object, with 0.75 scale applied
+          const result = {
+            x: (obj.x + obj.width / 2) * 0.75,
+            y: (obj.y + obj.height / 2) * 0.75,
+          };
+          console.log(`Found warp "${warpPointName}" in ${mapId}:`, result);
+          return result;
         }
       }
     }
+    console.log(`Warp "${warpPointName}" NOT found in ${mapId}`);
     return null;
   } catch (err) {
     console.error(`Error parsing map ${mapId}:`, err);

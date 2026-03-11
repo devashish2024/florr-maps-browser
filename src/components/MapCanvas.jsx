@@ -255,21 +255,22 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
     } else {
       // Map switch: go to checkpoint/spawn or camera target if provided
       if (cameraTarget) {
-        // First set up initial position via glideToCheckpoint logic
-        glideToCheckpoint();
-        // Then override target to animate toward the warp point
+        // Glide directly to the referenced warp/warp_destination position
+        // Start from map center and animate to the warp point
+        st.camera.x = mapData.width * 0.5;
+        st.camera.y = mapData.height * 0.5;
+        st.camera.rx = cameraTarget.x;
+        st.camera.ry = cameraTarget.y;
         // Snap zoom in to 0.25, then animate out to 0.125
         st.camera.fov = 0.25;
         st.camera.fovR = 0.125;
-        // Set target position to the warp point (camera.update will interpolate toward it)
-        st.camera.rx = cameraTarget.x;
-        st.camera.ry = cameraTarget.y;
         clampFov();
         updateGameScale(st.camera.fovR);
         clampViewerCenter();
         // Signal that camera target has been applied
         onCameraTargetApplied?.();
       } else {
+        // No warp target: use checkpoint/spawn logic
         glideToCheckpoint();
         if (mapKey !== "hel" && mapKey !== "br/hel") {
           st.camera.fovR = 0.52;
