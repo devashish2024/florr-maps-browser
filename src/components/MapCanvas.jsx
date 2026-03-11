@@ -5,6 +5,7 @@ import { VIEW_W, VIEW_H } from "../lib/consts.js";
 import { darkened } from "../lib/utils.js";
 import { RarityColor, rarityFromDiff } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
+import { isMapLoaded, findWarpPointInMap } from "../lib/maploader.js";
 
 // Helper to color rarity labels if present in text
 const colorRarityInText = (text) => {
@@ -16,7 +17,7 @@ const colorRarityInText = (text) => {
   return null;
 };
 
-export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
+export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapChange, cameraTarget, onCameraTargetApplied }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const stateRef = useRef(null);
@@ -163,20 +164,21 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
       st.camera.y = y;
     };
 
+    // Helper function to smoothly move camera to a position
+    const goTo = (x, y, fov = 0.25) => {
+      st.camera.fov = fov;
+      st.camera.fovR = fov;
+      st.camera.x = x;
+      st.camera.y = y;
+      st.camera.rx = x;
+      st.camera.ry = y;
+      clampFov();
+      updateGameScale(st.camera.fovR);
+      clampViewerCenter();
+    };
+
     // Auto-zoom to starting checkpoint
     const glideToCheckpoint = () => {
-      const goTo = (x, y, fov = 0.25) => {
-        st.camera.fov = fov;
-        st.camera.fovR = fov;
-        st.camera.x = x;
-        st.camera.y = y;
-        st.camera.rx = x;
-        st.camera.ry = y;
-        clampFov();
-        updateGameScale(st.camera.fovR);
-        clampViewerCenter();
-      };
-
       // Map-specific overrides
       if (mapKey === "hel" || mapKey === "br/hel") {
         goTo(mapData.width * 0.5, mapData.height * 0.5, 0.03);
@@ -251,14 +253,31 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
       if (!restored) glideToCheckpoint();
       st.wrapAlpha = 1.0;
     } else {
-      // Map switch: go to checkpoint/spawn, snap zoom to 0.25, then animate to 0.125
-      glideToCheckpoint();
-      if (mapKey !== "hel" && mapKey !== "br/hel") {
-        st.camera.fovR = 0.52;
+      // Map switch: go to checkpoint/spawn or camera target if provided
+      if (cameraTarget) {
+        // First set up initial position via glideToCheckpoint logic
+        glideToCheckpoint();
+        // Then override target to animate toward the warp point
+        // Snap zoom in to 0.25, then animate out to 0.125
         st.camera.fov = 0.25;
+        st.camera.fovR = 0.125;
+        // Set target position to the warp point (camera.update will interpolate toward it)
+        st.camera.rx = cameraTarget.x;
+        st.camera.ry = cameraTarget.y;
         clampFov();
         updateGameScale(st.camera.fovR);
         clampViewerCenter();
+        // Signal that camera target has been applied
+        onCameraTargetApplied?.();
+      } else {
+        glideToCheckpoint();
+        if (mapKey !== "hel" && mapKey !== "br/hel") {
+          st.camera.fovR = 0.52;
+          st.camera.fov = 0.25;
+          clampFov();
+          updateGameScale(st.camera.fovR);
+          clampViewerCenter();
+        }
       }
       st.wrapAlpha = 0;
     }
@@ -689,16 +708,22 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
 
         const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
 
-        // Set pressed warp ID if this warp is colliding and mouse is down
-        if (collision && st.warpPressedDown && warp.warpType === "warp") {
+        // Check if this warp can be interacted with:
+        // - Must have both "map" and "warpPoint" properties
+        // - Map must be different from current map
+        // - Map must be loaded
+        const canInteract = warp.map && warp.warpPoint && warp.map !== mapKey && isMapLoaded(warp.map);
+
+        // Set pressed warp ID if this warp is colliding, mouse is down, and can interact
+        if (collision && st.warpPressedDown && warp.warpType === "warp" && canInteract) {
           st.warpPressedId = warp.id;
         }
 
-        // Track press state - only advance progress if both colliding AND pressed
+        // Track press state - only advance progress if all conditions met
         let pressProgress = 0;
         const isPressed = st.warpPressedId === warp.id;
 
-        if (collision && isPressed && warp.warpType === "warp") {
+        if (collision && isPressed && warp.warpType === "warp" && canInteract) {
           if (!st.warpHoverMap.has(warp.id)) {
             st.warpHoverMap.set(warp.id, currentTime);
           }
@@ -706,9 +731,14 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           const elapsedTime = currentTime - pressStartTime;
           pressProgress = Math.min(elapsedTime / warpFillDuration, 1.0);
 
-          // Trigger alert when complete
+          // Trigger map change when complete
           if (pressProgress >= 1.0) {
-            alert("hello");
+            let cameraTarget = null;
+            // Try to find the target warp_point in the destination map
+            if (warp.warpPoint) {
+              cameraTarget = findWarpPointInMap(warp.map, warp.warpPoint);
+            }
+            onMapChange?.({ mapId: warp.map, cameraTarget });
             st.warpHoverMap.delete(warp.id); // Reset after activation
             st.warpPressedId = null; // Clear pressed state
           }
@@ -723,8 +753,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           octx.lineWidth = 40;
           octx.stroke(warpPath);
 
-          // Add light cyan fill on hover
-          if (collision) {
+          // Add light cyan fill on hover (only if warp can be interacted with)
+          if (collision && canInteract) {
             octx.globalAlpha = 0.5;
             octx.strokeStyle = "#00ccff";
             octx.lineWidth = 40;
@@ -737,9 +767,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           octx.stroke(warpPath);
         }
 
-        // Draw progress fill arc (only for warp type and when pressed)
-        if (warp.warpType === "warp" && pressProgress > 0) {
-          octx.strokeStyle = "#008fb3";
+        // Draw progress fill arc (only for warp type and when pressed with valid interaction)
+        if (warp.warpType === "warp" && pressProgress > 0 && canInteract) {
+          octx.strokeStyle = "#00ccff";
           octx.lineWidth = 40;
           const startAngle = -Math.PI / 2; // Start from top
           const endAngle = startAngle + (Math.PI * 2 * pressProgress);

@@ -74,3 +74,27 @@ export const ensureArchivedMapLoaded = async (id, onStatus) => {
 export const getMapRaw = (id) => mapCache.get(id);
 export const getMapLastFetched = (id) => mapLastFetched.get(id) || null;
 export const getAllMapLastFetched = () => Object.fromEntries(mapLastFetched);
+export const isMapLoaded = (id) => mapCache.has(id);
+
+// Find a warp or warp_destination by name in a map
+export const findWarpPointInMap = (mapId, warpPointName) => {
+  const rawText = mapCache.get(mapId);
+  if (!rawText) return null;
+
+  try {
+    const data = JSON.parse(rawText);
+    for (const layer of data.layers) {
+      if (!layer.objects) continue;
+      for (const obj of layer.objects) {
+        if ((obj.type === "warp_destination" || obj.type === "warp") && obj.name === warpPointName) {
+          // Apply the same 0.75 scale that tiled.js uses
+          return { x: obj.x * 0.75, y: obj.y * 0.75 };
+        }
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error(`Error parsing map ${mapId}:`, err);
+    return null;
+  }
+};
