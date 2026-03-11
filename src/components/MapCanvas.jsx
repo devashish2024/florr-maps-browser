@@ -679,7 +679,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
       const warpRadius = 80;
       const warpFillDuration = 3000; // 3 seconds in milliseconds
       const currentTime = performance.now();
-      
+
       for (const warp of mapData.warps) {
         octx.save();
         octx.translate(warp.x, warp.y);
@@ -697,7 +697,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
         // Track press state - only advance progress if both colliding AND pressed
         let pressProgress = 0;
         const isPressed = st.warpPressedId === warp.id;
-        
+
         if (collision && isPressed && warp.warpType === "warp") {
           if (!st.warpHoverMap.has(warp.id)) {
             st.warpHoverMap.set(warp.id, currentTime);
@@ -705,7 +705,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           const pressStartTime = st.warpHoverMap.get(warp.id);
           const elapsedTime = currentTime - pressStartTime;
           pressProgress = Math.min(elapsedTime / warpFillDuration, 1.0);
-          
+
           // Trigger alert when complete
           if (pressProgress >= 1.0) {
             alert("hello");
@@ -722,10 +722,10 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           octx.strokeStyle = "#ffffff"; // Base white stroke
           octx.lineWidth = 40;
           octx.stroke(warpPath);
-          
+
           // Add light cyan fill on hover
           if (collision) {
-            octx.globalAlpha = 0.2;
+            octx.globalAlpha = 0.5;
             octx.strokeStyle = "#00ccff";
             octx.lineWidth = 40;
             octx.stroke(warpPath);
@@ -739,7 +739,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
 
         // Draw progress fill arc (only for warp type and when pressed)
         if (warp.warpType === "warp" && pressProgress > 0) {
-          octx.strokeStyle = "#00ccff";
+          octx.strokeStyle = "#008fb3";
           octx.lineWidth = 40;
           const startAngle = -Math.PI / 2; // Start from top
           const endAngle = startAngle + (Math.PI * 2 * pressProgress);
