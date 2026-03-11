@@ -77,6 +77,7 @@ export default function App() {
   const [loadStartedAt] = useState(() => Date.now());
   const [refreshStartedAt, setRefreshStartedAt] = useState(null);
   const [timerNow, setTimerNow] = useState(() => Date.now());
+  const [cameraTarget, setCameraTarget] = useState(null);
 
   useEffect(() => {
     if (!loading && !refreshing) return;
@@ -248,30 +249,31 @@ export default function App() {
   };
 
   const handleFileSelect = useCallback(async (file) => {
-    if (file.type === "map" || file.type === "archived_map") {
+    // Handle both object format (from warp navigation) and regular file format
+    if (file.mapId) {
+      // Called from warp navigation: { mapId, cameraTarget }
+      const mapId = file.mapId;
+      const data = await loadAndSelectMap(mapId);
+      if (!data) return;
+      setMapData(data);
+      setCurrentFile({ type: "map", id: mapId });
+      setCameraTarget(file.cameraTarget || null);
+      saveVisited({ type: "map", id: mapId });
+    } else if (file.type === "map" || file.type === "archived_map") {
       if (currentFile?.type === file.type && currentFile?.id === file.id) return;
       const archived = file.type === "archived_map";
       const data = await loadAndSelectMap(file.id, undefined, archived);
       if (!data) return;
       setMapData(data);
       setCurrentFile(file);
+      setCameraTarget(null);
       saveVisited(file);
     } else {
+      setCameraTarget(null);
       setCurrentFile(file);
       saveVisited(file);
     }
   }, [currentFile, loadAndSelectMap]);
-
-  const handleWarpHover = useCallback(async (warp) => {
-    if (!warp.map) return;
-    // Only switch to regular (non-archived) maps via warp hover
-    const data = await loadAndSelectMap(warp.map, undefined, false);
-    if (!data) return;
-    const newFile = { type: "map", id: warp.map };
-    setMapData(data);
-    setCurrentFile(newFile);
-    saveVisited(newFile);
-  }, [loadAndSelectMap]);
 
   const handleRefreshAllMaps = useCallback(async () => {
     setRefreshing(true);
@@ -400,7 +402,9 @@ export default function App() {
             sprites={sprites}
             mobSprites={mobSpritesState}
             mapKey={currentFile?.type === "archived_map" ? `archived/${currentFile?.id}` : currentFile?.id}
-            onWarpHover={handleWarpHover}
+            onMapChange={handleFileSelect}
+            cameraTarget={cameraTarget}
+            onCameraTargetApplied={() => setCameraTarget(null)}
           />
         )}
         {!loading && currentFile?.type === "tile" && sprites && (

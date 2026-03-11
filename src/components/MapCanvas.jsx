@@ -5,6 +5,7 @@ import { VIEW_W, VIEW_H } from "../lib/consts.js";
 import { darkened } from "../lib/utils.js";
 import { RarityColor, rarityFromDiff } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
+import { isMapLoaded, findWarpPointInMap } from "../lib/maploader.js";
 
 // Helper to color rarity labels if present in text
 const colorRarityInText = (text) => {
@@ -16,9 +17,7 @@ const colorRarityInText = (text) => {
   return null;
 };
 
-const WARP_HOVER_THRESHOLD_MS = 1500;
-
-export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarpHover }) {
+export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapChange, cameraTarget, onCameraTargetApplied }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const stateRef = useRef(null);
@@ -61,10 +60,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
       cameraHeight: 1,
       totalScale: 1,
       wrapAlpha: 1.0,
-      warpHoveredId: null,
-      warpHoverTime: 0,
-      warpHoverFired: false,
-      pendingWarpPoint: undefined,
+      warpHoverMap: new Map(), // Map of warp.id -> timestamp when press started
+      warpPressedId: null, // ID of warp currently being pressed (mousedown)
+      warpPressedDown: false, // Whether mouse button 0 is down
     };
     return stateRef.current;
   }, []);
@@ -166,6 +164,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
       st.camera.y = y;
     };
 
+    // Helper function to smoothly move camera to a position
     const goTo = (x, y, fov = 0.25) => {
       st.camera.fov = fov;
       st.camera.fovR = fov;
@@ -180,7 +179,6 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
 
     // Auto-zoom to starting checkpoint
     const glideToCheckpoint = () => {
-
       // Map-specific overrides
       if (mapKey === "hel" || mapKey === "br/hel") {
         goTo(mapData.width * 0.5, mapData.height * 0.5, 0.03);
@@ -255,34 +253,35 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
       if (!restored) glideToCheckpoint();
       st.wrapAlpha = 1.0;
     } else {
-      // Map switch: check if triggered by warp hover → go to specific warp_destination
-      if (st.pendingWarpPoint !== undefined) {
-        const warpPoint = st.pendingWarpPoint;
-        st.pendingWarpPoint = undefined;
-        const warpDests = mapData.warps.filter((w) => w.warpType === "warp_destination");
-        // Find the warp_destination matching the source warp's warp_point (by Tiled name or warp_point property)
-        let target = null;
-        if (warpPoint) {
-          target = warpDests.find((w) => w.name === warpPoint || w.warpPoint === warpPoint) ?? null;
-        }
-        if (!target) target = warpDests[0] ?? null;
-        if (target) {
-          goTo(target.x + target.width * 0.5, target.y + target.height * 0.5);
-        } else {
-          glideToCheckpoint();
-        }
-      } else {
-        // Regular map switch: go to checkpoint/spawn, snap zoom to 0.25, then animate to 0.125
-        glideToCheckpoint();
-      }
-      if (mapKey !== "hel" && mapKey !== "br/hel") {
-        st.camera.fovR = 0.52;
+      // Map switch: go to checkpoint/spawn or camera target if provided
+      if (cameraTarget) {
+        // Animate from map center to the warp destination:
+        // camera.x/y is the TARGET (where camera slides to)
+        // camera.rx/ry is where the rendered camera starts
+        st.camera.x = cameraTarget.x;
+        st.camera.y = cameraTarget.y;
+        st.camera.rx = mapData.width * 0.5;
+        st.camera.ry = mapData.height * 0.5;
+        // Snap zoom in to 0.25, then animate out to 0.52
         st.camera.fov = 0.25;
+        st.camera.fovR = 0.52;
         clampFov();
         updateGameScale(st.camera.fovR);
         clampViewerCenter();
+        // Signal that camera target has been applied
+        onCameraTargetApplied?.();
+      } else {
+        // No warp target: use checkpoint/spawn logic
+        glideToCheckpoint();
+        if (mapKey !== "hel" && mapKey !== "br/hel") {
+          st.camera.fovR = 0.52;
+          st.camera.fov = 0.25;
+          clampFov();
+          updateGameScale(st.camera.fovR);
+          clampViewerCenter();
+        }
       }
-      st.wrapAlpha = 1.0;
+      st.wrapAlpha = 0;
     }
     st.tooltips.clear();
 
@@ -310,14 +309,22 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
     };
 
     const onMouseDown = (e) => {
-      if (e.button === 0) st.grab = true;
+      if (e.button === 0) {
+        st.grab = true;
+        st.warpPressedDown = true;
+      }
       if (e.button === 1) {
         e.preventDefault();
         st.camera.fov = 0.25;
       }
     };
     const onMouseUp = (e) => {
-      if (e.button === 0) st.grab = false;
+      if (e.button === 0) {
+        st.grab = false;
+        st.warpPressedDown = false;
+        st.warpPressedId = null;
+        st.warpHoverMap.clear();
+      }
     };
 
     const onTouchStart = (e) => {
@@ -691,69 +698,100 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
 
       // Warps
       const warpRadius = 80;
-      let hoveredWarpId = null;
+      const warpFillDuration = 3000; // 3 seconds in milliseconds
+      const currentTime = performance.now();
+
       for (const warp of mapData.warps) {
-        // Use the center of the bounding box as the warp's position
-        const cx = warp.x + warp.width * 0.5;
-        const cy = warp.y + warp.height * 0.5;
+        // Use the center of the bounding box for rendering and collision
+        const wcx = warp.x + warp.width * 0.5;
+        const wcy = warp.y + warp.height * 0.5;
 
         octx.save();
-        octx.translate(cx, cy);
+        octx.translate(wcx, wcy);
 
         const warpPath = new Path2D();
         warpPath.arc(0, 0, warpRadius, 0, Math.PI * 2);
 
         const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
 
-        if (collision && warp.warpType === "warp" && warp.map) {
-          hoveredWarpId = warp.id;
+        // Check if this warp can be interacted with:
+        // - Must have both "map" and "warpPoint" properties
+        // - Map must be different from current map
+        // - Map must be loaded
+        const canInteract = warp.map && warp.warpPoint && warp.map !== mapKey && isMapLoaded(warp.map);
+
+        // Set pressed warp ID if this warp is colliding, mouse is down, and can interact
+        if (collision && st.warpPressedDown && warp.warpType === "warp" && canInteract) {
+          st.warpPressedId = warp.id;
+        }
+
+        // Track press state - only advance progress if all conditions met
+        let pressProgress = 0;
+        const isPressed = st.warpPressedId === warp.id;
+
+        if (collision && isPressed && warp.warpType === "warp" && canInteract) {
+          if (!st.warpHoverMap.has(warp.id)) {
+            st.warpHoverMap.set(warp.id, currentTime);
+          }
+          const pressStartTime = st.warpHoverMap.get(warp.id);
+          const elapsedTime = currentTime - pressStartTime;
+          pressProgress = Math.min(elapsedTime / warpFillDuration, 1.0);
+
+          // Trigger map change when complete
+          if (pressProgress >= 1.0) {
+            let cameraTarget = null;
+            // Try to find the target warp_point in the destination map
+            if (warp.warpPoint) {
+              cameraTarget = findWarpPointInMap(warp.map, warp.warpPoint);
+            }
+            onMapChange?.({ mapId: warp.map, cameraTarget });
+            st.warpHoverMap.delete(warp.id); // Reset after activation
+            st.warpPressedId = null; // Clear pressed state
+          }
+        } else {
+          // Not pressed anymore - clear press state
+          st.warpHoverMap.delete(warp.id);
         }
 
         octx.globalAlpha = 1;
         if (warp.warpType === "warp") {
-          octx.strokeStyle = collision ? "#00ccff" : "#ffffff";
+          octx.strokeStyle = "#ffffff"; // Base white stroke
+          octx.lineWidth = 40;
+          octx.stroke(warpPath);
+
+          // Add light cyan fill on hover (only if warp can be interacted with)
+          if (collision && canInteract) {
+            octx.globalAlpha = 0.5;
+            octx.strokeStyle = "#00ccff";
+            octx.lineWidth = 40;
+            octx.stroke(warpPath);
+            octx.globalAlpha = 1.0;
+          }
         } else {
           octx.strokeStyle = "#000000";
-        }
-        octx.lineWidth = 40;
-        octx.stroke(warpPath);
-
-        // Draw hover-progress arc for warps with a target map
-        if (
-          warp.warpType === "warp" &&
-          warp.map &&
-          st.warpHoveredId === warp.id &&
-          !st.warpHoverFired
-        ) {
-          const progress = Math.min(1, st.warpHoverTime / WARP_HOVER_THRESHOLD_MS);
-          if (progress > 0) {
-            octx.strokeStyle = "#00ccff";
-            octx.lineWidth = 20;
-            octx.globalAlpha = 0.9;
-            const progressPath = new Path2D();
-            progressPath.arc(0, 0, warpRadius + 30, -Math.PI * 0.5, -Math.PI * 0.5 + Math.PI * 2 * progress);
-            octx.stroke(progressPath);
-          }
+          octx.lineWidth = 40;
+          octx.stroke(warpPath);
         }
 
-        octx.globalAlpha = 1.0;
+        // Draw progress fill arc (only for warp type and when pressed with valid interaction)
+        if (warp.warpType === "warp" && pressProgress > 0 && canInteract) {
+          octx.strokeStyle = "#00ccff";
+          octx.lineWidth = 40;
+          const startAngle = -Math.PI / 2; // Start from top
+          const endAngle = startAngle + (Math.PI * 2 * pressProgress);
+          const progressPath = new Path2D();
+          progressPath.arc(0, 0, warpRadius, startAngle, endAngle);
+          octx.stroke(progressPath);
+        }
 
         octx.restore();
 
         if (collision) {
           const contents = [["[" + warp.warpType + "]", "#00ccff"]];
           if (warp.name) contents.push(["name: " + warp.name, "#fff"]);
-          if (warp.map) {
-            const holdPct = st.warpHoveredId === warp.id && !st.warpHoverFired
-              ? Math.min(100, Math.round((st.warpHoverTime / WARP_HOVER_THRESHOLD_MS) * 100))
-              : null;
-            const mapLabel = holdPct !== null && holdPct > 0
-              ? `map: ${warp.map} (hold ${holdPct}%)`
-              : `map: ${warp.map}`;
-            contents.push([mapLabel, "#aaffaa"]);
-          }
+          if (warp.map) contents.push(["map: " + warp.map, "#aaffaa"]);
           if (warp.warpPoint) contents.push(["warp_point: " + warp.warpPoint, "#ffffaa"]);
-          contents.push(["pos: (" + Math.round(cx * 10) / 10 + "," + Math.round(cy * 10) / 10 + ")", "#aaaaff"]);
+          contents.push(["pos: (" + Math.round(wcx * 10) / 10 + "," + Math.round(wcy * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["size: (" + Math.round(warp.width * 10) / 10 + "x" + Math.round(warp.height * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["id: " + warp.id, "#999"]);
 
@@ -767,29 +805,6 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
 
           newTooltips.set(warp.id, { contents });
         }
-      }
-
-      // Update warp hover tracking
-      if (hoveredWarpId !== null) {
-        if (st.warpHoveredId === hoveredWarpId) {
-          st.warpHoverTime += dt;
-          if (st.warpHoverTime >= WARP_HOVER_THRESHOLD_MS && !st.warpHoverFired) {
-            const warp = mapData.warps.find((w) => w.id === hoveredWarpId);
-            if (warp?.map && onWarpHover) {
-              st.pendingWarpPoint = warp.warpPoint ?? null;
-              st.warpHoverFired = true;
-              onWarpHover(warp);
-            }
-          }
-        } else {
-          st.warpHoveredId = hoveredWarpId;
-          st.warpHoverTime = 0;
-          st.warpHoverFired = false;
-        }
-      } else {
-        st.warpHoveredId = null;
-        st.warpHoverTime = 0;
-        st.warpHoverFired = false;
       }
 
       // Unknown object types
@@ -1062,7 +1077,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onWarp
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", onContextMenu);
     };
-  }, [mapData, sprites, mobSprites, initState, mapKey, onWarpHover]);
+  }, [mapData, sprites, mobSprites, initState, mapKey]);
 
   const handleZoomIn = () => {
     const state = stateRef.current;
