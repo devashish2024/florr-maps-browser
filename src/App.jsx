@@ -262,6 +262,17 @@ export default function App() {
     }
   }, [currentFile, loadAndSelectMap]);
 
+  const handleWarpHover = useCallback(async (warp) => {
+    if (!warp.map) return;
+    // Only switch to regular (non-archived) maps via warp hover
+    const data = await loadAndSelectMap(warp.map, undefined, false);
+    if (!data) return;
+    const newFile = { type: "map", id: warp.map };
+    setMapData(data);
+    setCurrentFile(newFile);
+    saveVisited(newFile);
+  }, [loadAndSelectMap]);
+
   const handleRefreshAllMaps = useCallback(async () => {
     setRefreshing(true);
     setRefreshStartedAt(Date.now());
@@ -389,6 +400,7 @@ export default function App() {
             sprites={sprites}
             mobSprites={mobSpritesState}
             mapKey={currentFile?.type === "archived_map" ? `archived/${currentFile?.id}` : currentFile?.id}
+            onWarpHover={handleWarpHover}
           />
         )}
         {!loading && currentFile?.type === "tile" && sprites && (
