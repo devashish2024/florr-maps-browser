@@ -6,6 +6,16 @@ import { darkened } from "../lib/utils.js";
 import { RarityColor, rarityFromDiff } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
 
+// Helper to color rarity labels if present in text
+const colorRarityInText = (text) => {
+  for (const [rarity, color] of Object.entries(RarityColor)) {
+    if (text.toLowerCase().includes(rarity.toLowerCase())) {
+      return [text, color];
+    }
+  }
+  return null;
+};
+
 export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -572,8 +582,16 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           if (!isNaN(spawner.difficulty)) contents.push(["difficulty: " + spawner.difficulty, "#fff"]);
           if (!isNaN(spawner.density)) contents.push(["density: " + spawner.density, "#fff"]);
           if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay: " + spawner.extraSpawnDelay, "#facbcb"]);
-          if (!isNaN(spawner.forceRarity)) contents.push(["force_rarity: " + spawner.forceRarity, "#facbcb"]);
+          
+          // Color force_rarity by its rarity level
+          if (!isNaN(spawner.forceRarity)) {
+            const forceRarityText = "force_rarity: " + spawner.forceRarity;
+            const rarityColored = colorRarityInText(forceRarityText);
+            contents.push(rarityColored || [forceRarityText, "#facbcb"]);
+          }
+          
           if (!isNaN(spawner.team)) contents.push(["team: " + spawner.team, "#facbcb"]);
+          if (spawner.biomeName) contents.push(["biome: " + spawner.biomeName, "#ffccaa"]);
           contents.push(["pos: (" + Math.round(spawner.x * 10) / 10 + "," + Math.round(spawner.y * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["size: (" + Math.round(spawner.width * 10) / 10 + "x" + Math.round(spawner.height * 10) / 10 + ")", "#aaaaff"]);
           contents.push(["id: " + spawner.id, "#999"]);
@@ -581,16 +599,32 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey }) {
           // Add custom properties, excluding ones already shown
           const customProps = getObjectProperties(spawner.rawObj).filter(
             ([text]) => !text.includes("difficulty:") && !text.includes("density:") && !text.includes("extra_spawn_delay:") &&
-              !text.includes("force_rarity:") && !text.includes("team:")
+              !text.includes("force_rarity:") && !text.includes("team:") && !text.includes("mobs:")
           );
           for (const prop of customProps) {
             contents.push(prop);
           }
 
-          const totalWeight = spawner.mobs.reduce((a, m) => a + m.chance, 0);
-          const mobsWithFreq = totalWeight > 0
-            ? spawner.mobs.map((m) => ({ ...m, chance: Math.round((m.chance / totalWeight) * 100) + "%" }))
-            : spawner.mobs;
+          // Handle mob frequencies
+          // For biome zones with weights: show "?" for unknown biome mobs, percentages for weighted ones
+          // For regular zones: calculate percentages normally
+          const weightedMobs = spawner.mobs.filter(m => m.isWeighted);
+          const totalWeight = weightedMobs.reduce((a, m) => a + m.chance, 0);
+          
+          const mobsWithFreq = spawner.mobs.map((m) => {
+            let chance;
+            if (m.isUnknown) {
+              chance = "?";
+            } else if (m.isWeighted) {
+              chance = totalWeight > 0 ? (Math.round((m.chance / totalWeight) * 100) + "%") : "?";
+            } else {
+              // Regular mob with chance value
+              const regTotalWeight = spawner.mobs.reduce((a, mob) => a + (mob.chance || 0), 0);
+              chance = regTotalWeight > 0 ? (Math.round((m.chance / regTotalWeight) * 100) + "%") : "?";
+            }
+            return { ...m, chance };
+          });
+          
           newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq, zoneColor: spawner.color });
         }
       }

@@ -27,3 +27,27 @@ export const revmap = new Map();
 for (const [id, sid] of mobmap) {
   revmap.set(sid, id);
 }
+
+// Biome-specific spawn zone configurations
+export const biomeSpawns = {
+  garden: {
+    displayName: "garden",
+    mobs: ["rock", "ladybug", "ant_hole", "spider", "dandelion", "bee", "hornet", "bumble_bee", "centipede"]
+  },
+  desert: {
+    displayName: "desert",
+    mobs: ["cactus", "beetle", "beetle_nazar", "scorpion", "ladybug_shiny", "fire_ant_burrow", "sandstorm", "centipede_desert"]
+  },
+  ocean: {
+    displayName: "ocean",
+    mobs: ["bubble", "sponge", "shell", "jellyfish", "starfish", "crab", "leech"]
+  },
+  jungle: {
+    displayName: "jungle",
+    mobs: ["bush", "wasp", "leafbug", "leafbug_shiny", "mantis", "termite_mound", "ladybug_dark", "centipede_evil", "firefly", "firefly_magic"]
+  },
+  sewers: {
+    displayName: "sewers",
+    mobs: ["fly", "moth", "spider", "roach", "garbage", "silverfish"]
+  }
+};
