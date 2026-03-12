@@ -267,34 +267,34 @@ export default function SettingsViewer() {
 
                 <Section title="Performance / Compatibility">
                     <Toggle
-                        label="Low Resolution"
-                        description="Halve canvas resolution — helps on weaker GPUs"
-                        checked={settings.lowResolution}
-                        onChange={(v) => setSetting("lowResolution", v)}
+                        label="Half Canvas Resolution"
+                        description="Render at 50% resolution (shows blurry/stretched) — significant FPS boost on weak GPUs"
+                        checked={settings.halfCanvasResolution}
+                        onChange={(v) => setSetting("halfCanvasResolution", v)}
+                    />
+                    <Toggle
+                        label="Skip Overlay Rendering"
+                        description="Don't render zone borders, checkpoints, warps, shortcuts — huge FPS gain if many objects"
+                        checked={settings.disableOverlayRendering}
+                        onChange={(v) => setSetting("disableOverlayRendering", v)}
+                    />
+                    <Toggle
+                        label="Disable Tooltips"
+                        description="Don't render tooltips at all (faster than the Tooltips toggle above)"
+                        checked={settings.disableTooltips}
+                        onChange={(v) => setSetting("disableTooltips", v)}
+                    />
+                    <Toggle
+                        label="Disable Mob Icons in Tooltips"
+                        description="Skip rendering mob sprites — reduces memory & draw calls"
+                        checked={settings.disableMobIcons}
+                        onChange={(v) => setSetting("disableMobIcons", v)}
                     />
                     <Toggle
                         label="Disable Smooth Camera"
                         description="Instant camera movement instead of lerping"
                         checked={settings.disableSmoothCamera}
                         onChange={(v) => setSetting("disableSmoothCamera", v)}
-                    />
-                    <Toggle
-                        label="Disable Mob Icons"
-                        description="Don't render mob sprites in tooltips — saves memory"
-                        checked={settings.disableMobIcons}
-                        onChange={(v) => setSetting("disableMobIcons", v)}
-                    />
-                    <Toggle
-                        label="Disable Warp Animation"
-                        description="Skip the 3-second warp hold-to-activate fill"
-                        checked={settings.disableWarpAnimation}
-                        onChange={(v) => setSetting("disableWarpAnimation", v)}
-                    />
-                    <Toggle
-                        label="Reduced Overlay"
-                        description="Lower overlay DPI — improves FPS on weaker devices"
-                        checked={settings.reducedOverlay}
-                        onChange={(v) => setSetting("reducedOverlay", v)}
                     />
                 </Section>
 

@@ -101,7 +101,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
     const resize = () => {
       const rect = container.getBoundingClientRect();
       const cfg = getSettings();
-      const dpr = cfg.lowResolution ? Math.max(1, devicePixelRatio * 0.5) : devicePixelRatio;
+      const dpr = cfg.halfCanvasResolution ? Math.max(1, devicePixelRatio * 0.5) : devicePixelRatio;
       st.dpr = dpr;
       const w = rect.width * dpr;
       const h = rect.height * dpr;
@@ -109,13 +109,10 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       canvas.height = h;
       overlay.width = w;
       overlay.height = h;
-      // Reduced overlay only affects the tooltip canvas
-      const uiDpr = cfg.reducedOverlay ? Math.max(1, dpr * 0.5) : dpr;
-      const uw = rect.width * uiDpr;
-      const uh = rect.height * uiDpr;
-      uiCanvas.width = uw;
-      uiCanvas.height = uh;
-      st.uiScale = uiDpr / dpr;
+      // Tooltips canvas always at same resolution as main
+      uiCanvas.width = w;
+      uiCanvas.height = h;
+      st.uiScale = 1;
 
       const scale = Math.max(w / VIEW_W, h / VIEW_H);
       st.scale = scale;
@@ -510,9 +507,6 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         }
       }
 
-      // Re-check performance settings each frame (cheap read)
-      const uiS = st.uiScale || 1;
-
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       octx.clearRect(0, 0, overlay.width, overlay.height);
       uctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
@@ -538,390 +532,393 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       );
       ctx.drawImage(st.renderer.canvas, 0, 0);
 
-      // Game overlay (spawners, checkpoints, special sprites)
-      octx.save();
-      octx.scale(st.scale, st.scale);
-      octx.scale(st.cameraScale, st.cameraScale);
-      octx.translate(-st.cameraX, -st.cameraY);
-
-      // Special sprites
-      for (const s of mapData.specialSprites) {
-        const sprite = sprites.get(s.id - mapData.firstGid);
-        if (!sprite) continue;
-        octx.save();
-        octx.translate(s.x, s.y);
-        octx.drawImage(sprite, 0, -s.height, s.width, s.height);
-        octx.restore();
-      }
-
+      // Tooltip state (used both inside and outside the overlay rendering block)
       const lw = 25;
-      const showTooltips = cfg.showTooltips && !st.hideTooltipKeyHeld;
+      const showTooltips = !cfg.disableTooltips && cfg.showTooltips && !st.hideTooltipKeyHeld;
       const newTooltips = new Map();
 
-      // Helper function to get all properties from a raw object
-      const getObjectProperties = (rawObj) => {
-        const props = [];
-        if (rawObj.properties && Array.isArray(rawObj.properties)) {
-          for (const prop of rawObj.properties) {
-            props.push([prop.name + ": " + prop.value, "#ccc"]);
-          }
+      // Game overlay (spawners, checkpoints, special sprites)
+      if (!cfg.disableOverlayRendering) {
+        octx.save();
+        octx.scale(st.scale, st.scale);
+        octx.scale(st.cameraScale, st.cameraScale);
+        octx.translate(-st.cameraX, -st.cameraY);
+
+        // Special sprites
+        for (const s of mapData.specialSprites) {
+          const sprite = sprites.get(s.id - mapData.firstGid);
+          if (!sprite) continue;
+          octx.save();
+          octx.translate(s.x, s.y);
+          octx.drawImage(sprite, 0, -s.height, s.width, s.height);
+          octx.restore();
         }
-        return props;
-      };
 
-      // Helper function to look up tile name by gid
-      const getTileNameByGid = (tileId) => {
-        for (const tileset of mapData.data.tilesets || []) {
-          if (tileset.tiles) {
-            const localId = tileId - (tileset.firstgid ?? 1);
-            const tile = tileset.tiles.find((t) => t.id === localId);
-            if (tile) return tile.name;
+        // Helper function to get all properties from a raw object
+        const getObjectProperties = (rawObj) => {
+          const props = [];
+          if (rawObj.properties && Array.isArray(rawObj.properties)) {
+            for (const prop of rawObj.properties) {
+              props.push([prop.name + ": " + prop.value, "#ccc"]);
+            }
           }
-        }
-        return null;
-      };
+          return props;
+        };
 
-      // Check for tiles under cursor (for tooltip)
-      const gridX = Math.floor(st.cursorX / mapData.tilewidth);
-      const gridY = Math.floor(st.cursorY / mapData.tileheight);
-      if (!showTooltips) { /* skip tile tooltip */ } else
-        if (gridX >= 0 && gridY >= 0 && gridX < mapData.gw && gridY < mapData.gh) {
-          const idx = gridY * mapData.gw + gridX;
-          // Check all tile layers in reverse order (top layer first)
-          for (let layerIdx = mapData.data.layers.length - 1; layerIdx >= 0; layerIdx--) {
-            const layer = mapData.data.layers[layerIdx];
-            if (layer.type === "tilelayer" && layer.data && layer.visible !== false) {
-              if (idx < layer.data.length) {
-                const rawTileId = layer.data[idx];
-                const tileId = rawTileId & 0x0FFFFFFF; // Remove rotation flags
-                if (tileId > 0) {
-                  // Found a tile, create tooltip
-                  const contents = [];
-                  contents.push(["layer: " + (layer.name || "unnamed"), "#aaffaa"]);
-                  contents.push(["grid: (" + gridX + "," + gridY + ")", "#aaaaff"]);
-                  contents.push(["world: (" + Math.round(st.cursorX * 10) / 10 + "," + Math.round(st.cursorY * 10) / 10 + ")", "#aaaaff"]);
-                  contents.push(["tile_id: " + tileId, "#999"]);
-                  contents.push(["raw: 0x" + rawTileId.toString(16).toUpperCase().padStart(8, "0"), "#666"]);
+        // Helper function to look up tile name by gid
+        const getTileNameByGid = (tileId) => {
+          for (const tileset of mapData.data.tilesets || []) {
+            if (tileset.tiles) {
+              const localId = tileId - (tileset.firstgid ?? 1);
+              const tile = tileset.tiles.find((t) => t.id === localId);
+              if (tile) return tile.name;
+            }
+          }
+          return null;
+        };
 
-                  // Check if this tile has properties in the tileset
-                  let tileObj = null;
-                  for (const tileset of mapData.data.tilesets || []) {
-                    const firstgid = tileset.firstgid ?? 1;
-                    if (tileId >= firstgid && tileId < firstgid + (tileset.tilecount ?? 0)) {
-                      const localId = tileId - firstgid;
-                      tileObj = tileset.tiles?.find((t) => t.id === localId);
-                      break;
+        // Check for tiles under cursor (for tooltip)
+        const gridX = Math.floor(st.cursorX / mapData.tilewidth);
+        const gridY = Math.floor(st.cursorY / mapData.tileheight);
+        if (!showTooltips) { /* skip tile tooltip */ } else
+          if (gridX >= 0 && gridY >= 0 && gridX < mapData.gw && gridY < mapData.gh) {
+            const idx = gridY * mapData.gw + gridX;
+            // Check all tile layers in reverse order (top layer first)
+            for (let layerIdx = mapData.data.layers.length - 1; layerIdx >= 0; layerIdx--) {
+              const layer = mapData.data.layers[layerIdx];
+              if (layer.type === "tilelayer" && layer.data && layer.visible !== false) {
+                if (idx < layer.data.length) {
+                  const rawTileId = layer.data[idx];
+                  const tileId = rawTileId & 0x0FFFFFFF; // Remove rotation flags
+                  if (tileId > 0) {
+                    // Found a tile, create tooltip
+                    const contents = [];
+                    contents.push(["layer: " + (layer.name || "unnamed"), "#aaffaa"]);
+                    contents.push(["grid: (" + gridX + "," + gridY + ")", "#aaaaff"]);
+                    contents.push(["world: (" + Math.round(st.cursorX * 10) / 10 + "," + Math.round(st.cursorY * 10) / 10 + ")", "#aaaaff"]);
+                    contents.push(["tile_id: " + tileId, "#999"]);
+                    contents.push(["raw: 0x" + rawTileId.toString(16).toUpperCase().padStart(8, "0"), "#666"]);
+
+                    // Check if this tile has properties in the tileset
+                    let tileObj = null;
+                    for (const tileset of mapData.data.tilesets || []) {
+                      const firstgid = tileset.firstgid ?? 1;
+                      if (tileId >= firstgid && tileId < firstgid + (tileset.tilecount ?? 0)) {
+                        const localId = tileId - firstgid;
+                        tileObj = tileset.tiles?.find((t) => t.id === localId);
+                        break;
+                      }
                     }
-                  }
 
-                  if (tileObj?.properties && Array.isArray(tileObj.properties)) {
-                    for (const prop of tileObj.properties) {
-                      contents.push(["  " + prop.name + ": " + prop.value, "#999"]);
+                    if (tileObj?.properties && Array.isArray(tileObj.properties)) {
+                      for (const prop of tileObj.properties) {
+                        contents.push(["  " + prop.name + ": " + prop.value, "#999"]);
+                      }
                     }
-                  }
 
-                  newTooltips.set("tile_" + layerIdx, { contents });
-                  break; // Only show topmost tile
+                    newTooltips.set("tile_" + layerIdx, { contents });
+                    break; // Only show topmost tile
+                  }
                 }
               }
             }
           }
-        }
 
-      // Mob spawners
-      if (!cfg.showZoneBorders) { /* skip zone borders */ } else
-        for (const spawner of mapData.mobSpawners) {
-          octx.save();
-          octx.translate(spawner.x, spawner.y);
-          octx.fillStyle = spawner.color;
-          octx.strokeStyle = darkened(spawner.color.substring(1), 0.2);
-          octx.lineWidth = lw;
-          octx.beginPath();
+        // Mob spawners
+        if (!cfg.showZoneBorders) { /* skip zone borders */ } else
+          for (const spawner of mapData.mobSpawners) {
+            octx.save();
+            octx.translate(spawner.x, spawner.y);
+            octx.fillStyle = spawner.color;
+            octx.strokeStyle = darkened(spawner.color.substring(1), 0.2);
+            octx.lineWidth = lw;
+            octx.beginPath();
 
-          const collision = octx.isPointInPath(spawner.points, st.cursorX, st.cursorY);
-          octx.globalAlpha = collision ? (spawner.big ? 0.0 : 0.1) : 0.0;
-          octx.fill(spawner.points);
-          octx.globalAlpha = 1.0;
-          octx.stroke(spawner.points);
-          octx.restore();
+            const collision = octx.isPointInPath(spawner.points, st.cursorX, st.cursorY);
+            octx.globalAlpha = collision ? (spawner.big ? 0.0 : 0.1) : 0.0;
+            octx.fill(spawner.points);
+            octx.globalAlpha = 1.0;
+            octx.stroke(spawner.points);
+            octx.restore();
 
-          if (collision && showTooltips) {
-            const contents = [];
-            contents.push(["[spawn_mobs]", "#ffaaff"]);
-            contents.push(["rarity: " + rarityFromDiff(spawner.difficulty).toLowerCase(), spawner.color]);
-            if (!isNaN(spawner.difficulty)) contents.push(["difficulty: " + spawner.difficulty, "#fff"]);
-            if (!isNaN(spawner.density)) contents.push(["density: " + spawner.density, "#fff"]);
-            if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay: " + spawner.extraSpawnDelay, "#facbcb"]);
+            if (collision && showTooltips) {
+              const contents = [];
+              contents.push(["[spawn_mobs]", "#ffaaff"]);
+              contents.push(["rarity: " + rarityFromDiff(spawner.difficulty).toLowerCase(), spawner.color]);
+              if (!isNaN(spawner.difficulty)) contents.push(["difficulty: " + spawner.difficulty, "#fff"]);
+              if (!isNaN(spawner.density)) contents.push(["density: " + spawner.density, "#fff"]);
+              if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay: " + spawner.extraSpawnDelay, "#facbcb"]);
 
-            // Color force_rarity by its rarity level
-            if (!isNaN(spawner.forceRarity)) {
-              const forceRarityText = "force_rarity: " + spawner.forceRarity;
-              const rarityColored = colorRarityInText(forceRarityText);
-              contents.push(rarityColored || [forceRarityText, "#facbcb"]);
-            }
-
-            if (!isNaN(spawner.team)) contents.push(["team: " + spawner.team, "#facbcb"]);
-            if (spawner.biomeName) contents.push(["biome: " + spawner.biomeName, "#ffccaa"]);
-            contents.push(["pos: (" + Math.round(spawner.x * 10) / 10 + "," + Math.round(spawner.y * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["size: (" + Math.round(spawner.width * 10) / 10 + "x" + Math.round(spawner.height * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["id: " + spawner.id, "#999"]);
-
-            // Add custom properties, excluding ones already shown
-            const customProps = getObjectProperties(spawner.rawObj).filter(
-              ([text]) => !text.includes("difficulty:") && !text.includes("density:") && !text.includes("extra_spawn_delay:") &&
-                !text.includes("force_rarity:") && !text.includes("team:") && !text.includes("mobs:")
-            );
-            for (const prop of customProps) {
-              contents.push(prop);
-            }
-
-            // Handle mob frequencies
-            // For biome zones with weights: show "?" for unknown biome mobs, percentages for weighted ones
-            // For regular zones: calculate percentages normally
-            const weightedMobs = spawner.mobs.filter(m => m.isWeighted);
-            const totalWeight = weightedMobs.reduce((a, m) => a + m.chance, 0);
-
-            const mobsWithFreq = spawner.mobs.map((m) => {
-              let chance;
-              if (m.isUnknown) {
-                chance = "?";
-              } else if (m.isWeighted) {
-                chance = totalWeight > 0 ? (Math.round((m.chance / totalWeight) * 100) + "%") : "?";
-              } else {
-                // Regular mob with chance value
-                const regTotalWeight = spawner.mobs.reduce((a, mob) => a + (mob.chance || 0), 0);
-                chance = regTotalWeight > 0 ? (Math.round((m.chance / regTotalWeight) * 100) + "%") : "?";
+              // Color force_rarity by its rarity level
+              if (!isNaN(spawner.forceRarity)) {
+                const forceRarityText = "force_rarity: " + spawner.forceRarity;
+                const rarityColored = colorRarityInText(forceRarityText);
+                contents.push(rarityColored || [forceRarityText, "#facbcb"]);
               }
-              return { ...m, chance };
-            });
 
-            newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq, zoneColor: spawner.color });
-          }
-        }
+              if (!isNaN(spawner.team)) contents.push(["team: " + spawner.team, "#facbcb"]);
+              if (spawner.biomeName) contents.push(["biome: " + spawner.biomeName, "#ffccaa"]);
+              contents.push(["pos: (" + Math.round(spawner.x * 10) / 10 + "," + Math.round(spawner.y * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["size: (" + Math.round(spawner.width * 10) / 10 + "x" + Math.round(spawner.height * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["id: " + spawner.id, "#999"]);
 
-      // Checkpoints
-      if (!cfg.showCheckpoints) { /* skip checkpoints */ } else
-        for (const cp of mapData.checkPoints) {
-          octx.save();
-          octx.translate(cp.x, cp.y);
-          octx.fillStyle = "#ff00ff";
-          octx.strokeStyle = "#ff00ff";
-          octx.lineWidth = lw;
-          octx.beginPath();
-
-          const collision = octx.isPointInPath(cp.points, st.cursorX, st.cursorY);
-          octx.globalAlpha = collision ? 0.1 : 0.0;
-          octx.fill(cp.points);
-          octx.globalAlpha = 1.0;
-          octx.stroke(cp.points);
-          octx.restore();
-
-          if (collision && showTooltips) {
-            const contents = [["[checkpoint]", "#ccffcf"]];
-            if (!isNaN(cp.level)) contents.push(["level: " + cp.level, "#fff"]);
-            contents.push(["pos: (" + Math.round(cp.x * 10) / 10 + "," + Math.round(cp.y * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["size: (" + Math.round(cp.width * 10) / 10 + "x" + Math.round(cp.height * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["id: " + cp.id, "#999"]);
-
-            // Add custom properties, excluding ones already shown
-            const customProps = getObjectProperties(cp.rawObj).filter(
-              ([text]) => !text.includes("level:")
-            );
-            for (const prop of customProps) {
-              contents.push(prop);
-            }
-
-            newTooltips.set(cp.id, { contents });
-          }
-        }
-
-      // Warps
-      const warpRadius = 80;
-      const warpFillDuration = cfg.disableWarpAnimation ? 0 : 3000;
-      const currentTime = performance.now();
-
-      if (!cfg.showWarps) { /* skip warps */ } else
-        for (const warp of mapData.warps) {
-          octx.save();
-          octx.translate(warp.x, warp.y);
-
-          const warpPath = new Path2D();
-          warpPath.arc(0, 0, warpRadius, 0, Math.PI * 2);
-
-          const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
-
-          // Check if this warp can be interacted with:
-          // - Must have both "map" and "warpPoint" properties
-          // - Map must be different from current map
-          // - Map must be loaded
-          const canInteract = warp.map && warp.warpPoint && warp.map !== mapKey && isMapLoaded(warp.map);
-
-          // Set pressed warp ID if this warp is colliding, mouse is down, and can interact
-          if (collision && st.warpPressedDown && warp.warpType === "warp" && canInteract) {
-            st.warpPressedId = warp.id;
-          }
-
-          // Track press state - only advance progress if all conditions met
-          let pressProgress = 0;
-          const isPressed = st.warpPressedId === warp.id;
-
-          if (collision && isPressed && warp.warpType === "warp" && canInteract) {
-            if (!st.warpHoverMap.has(warp.id)) {
-              st.warpHoverMap.set(warp.id, currentTime);
-            }
-            const pressStartTime = st.warpHoverMap.get(warp.id);
-            const elapsedTime = currentTime - pressStartTime;
-            pressProgress = Math.min(elapsedTime / warpFillDuration, 1.0);
-
-            // Trigger map change when complete
-            if (pressProgress >= 1.0) {
-              let cameraTarget = null;
-              // Try to find the target warp_point in the destination map
-              if (warp.warpPoint) {
-                cameraTarget = findWarpPointInMap(warp.map, warp.warpPoint);
+              // Add custom properties, excluding ones already shown
+              const customProps = getObjectProperties(spawner.rawObj).filter(
+                ([text]) => !text.includes("difficulty:") && !text.includes("density:") && !text.includes("extra_spawn_delay:") &&
+                  !text.includes("force_rarity:") && !text.includes("team:") && !text.includes("mobs:")
+              );
+              for (const prop of customProps) {
+                contents.push(prop);
               }
-              onMapChange?.({ mapId: warp.map, cameraTarget });
-              st.warpHoverMap.delete(warp.id); // Reset after activation
-              st.warpPressedId = null; // Clear pressed state
+
+              // Handle mob frequencies
+              // For biome zones with weights: show "?" for unknown biome mobs, percentages for weighted ones
+              // For regular zones: calculate percentages normally
+              const weightedMobs = spawner.mobs.filter(m => m.isWeighted);
+              const totalWeight = weightedMobs.reduce((a, m) => a + m.chance, 0);
+
+              const mobsWithFreq = spawner.mobs.map((m) => {
+                let chance;
+                if (m.isUnknown) {
+                  chance = "?";
+                } else if (m.isWeighted) {
+                  chance = totalWeight > 0 ? (Math.round((m.chance / totalWeight) * 100) + "%") : "?";
+                } else {
+                  // Regular mob with chance value
+                  const regTotalWeight = spawner.mobs.reduce((a, mob) => a + (mob.chance || 0), 0);
+                  chance = regTotalWeight > 0 ? (Math.round((m.chance / regTotalWeight) * 100) + "%") : "?";
+                }
+                return { ...m, chance };
+              });
+
+              newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq, zoneColor: spawner.color });
             }
-          } else {
-            // Not pressed anymore - clear press state
-            st.warpHoverMap.delete(warp.id);
           }
 
-          octx.globalAlpha = 1;
-          if (warp.warpType === "warp") {
-            octx.strokeStyle = "#ffffff"; // Base white stroke
-            octx.lineWidth = 40;
-            octx.stroke(warpPath);
+        // Checkpoints
+        if (!cfg.showCheckpoints) { /* skip checkpoints */ } else
+          for (const cp of mapData.checkPoints) {
+            octx.save();
+            octx.translate(cp.x, cp.y);
+            octx.fillStyle = "#ff00ff";
+            octx.strokeStyle = "#ff00ff";
+            octx.lineWidth = lw;
+            octx.beginPath();
 
-            // Add light cyan fill on hover (only if warp can be interacted with)
-            if (collision && canInteract) {
-              octx.globalAlpha = 0.5;
-              octx.strokeStyle = "#00ccff";
+            const collision = octx.isPointInPath(cp.points, st.cursorX, st.cursorY);
+            octx.globalAlpha = collision ? 0.1 : 0.0;
+            octx.fill(cp.points);
+            octx.globalAlpha = 1.0;
+            octx.stroke(cp.points);
+            octx.restore();
+
+            if (collision && showTooltips) {
+              const contents = [["[checkpoint]", "#ccffcf"]];
+              if (!isNaN(cp.level)) contents.push(["level: " + cp.level, "#fff"]);
+              contents.push(["pos: (" + Math.round(cp.x * 10) / 10 + "," + Math.round(cp.y * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["size: (" + Math.round(cp.width * 10) / 10 + "x" + Math.round(cp.height * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["id: " + cp.id, "#999"]);
+
+              // Add custom properties, excluding ones already shown
+              const customProps = getObjectProperties(cp.rawObj).filter(
+                ([text]) => !text.includes("level:")
+              );
+              for (const prop of customProps) {
+                contents.push(prop);
+              }
+
+              newTooltips.set(cp.id, { contents });
+            }
+          }
+
+        // Warps
+        const warpRadius = 80;
+        const warpFillDuration = 3000; // 3 seconds in milliseconds
+        const currentTime = performance.now();
+
+        if (!cfg.showWarps) { /* skip warps */ } else
+          for (const warp of mapData.warps) {
+            octx.save();
+            octx.translate(warp.x, warp.y);
+
+            const warpPath = new Path2D();
+            warpPath.arc(0, 0, warpRadius, 0, Math.PI * 2);
+
+            const collision = octx.isPointInPath(warpPath, st.cursorX, st.cursorY);
+
+            // Check if this warp can be interacted with:
+            // - Must have both "map" and "warpPoint" properties
+            // - Map must be different from current map
+            // - Map must be loaded
+            const canInteract = warp.map && warp.warpPoint && warp.map !== mapKey && isMapLoaded(warp.map);
+
+            // Set pressed warp ID if this warp is colliding, mouse is down, and can interact
+            if (collision && st.warpPressedDown && warp.warpType === "warp" && canInteract) {
+              st.warpPressedId = warp.id;
+            }
+
+            // Track press state - only advance progress if all conditions met
+            let pressProgress = 0;
+            const isPressed = st.warpPressedId === warp.id;
+
+            if (collision && isPressed && warp.warpType === "warp" && canInteract) {
+              if (!st.warpHoverMap.has(warp.id)) {
+                st.warpHoverMap.set(warp.id, currentTime);
+              }
+              const pressStartTime = st.warpHoverMap.get(warp.id);
+              const elapsedTime = currentTime - pressStartTime;
+              pressProgress = Math.min(elapsedTime / warpFillDuration, 1.0);
+
+              // Trigger map change when complete
+              if (pressProgress >= 1.0) {
+                let cameraTarget = null;
+                // Try to find the target warp_point in the destination map
+                if (warp.warpPoint) {
+                  cameraTarget = findWarpPointInMap(warp.map, warp.warpPoint);
+                }
+                onMapChange?.({ mapId: warp.map, cameraTarget });
+                st.warpHoverMap.delete(warp.id); // Reset after activation
+                st.warpPressedId = null; // Clear pressed state
+              }
+            } else {
+              // Not pressed anymore - clear press state
+              st.warpHoverMap.delete(warp.id);
+            }
+
+            octx.globalAlpha = 1;
+            if (warp.warpType === "warp") {
+              octx.strokeStyle = "#ffffff"; // Base white stroke
               octx.lineWidth = 40;
               octx.stroke(warpPath);
-              octx.globalAlpha = 1.0;
-            }
-          } else {
-            octx.strokeStyle = "#000000";
-            octx.lineWidth = 40;
-            octx.stroke(warpPath);
-          }
 
-          // Draw progress fill arc (only for warp type and when pressed with valid interaction)
-          if (warp.warpType === "warp" && pressProgress > 0 && canInteract) {
-            octx.strokeStyle = "#00ccff";
-            octx.lineWidth = 40;
-            const startAngle = -Math.PI / 2; // Start from top
-            const endAngle = startAngle + (Math.PI * 2 * pressProgress);
-            const progressPath = new Path2D();
-            progressPath.arc(0, 0, warpRadius, startAngle, endAngle);
-            octx.stroke(progressPath);
-          }
-
-          octx.restore();
-
-          if (collision && showTooltips) {
-            const contents = [["[" + warp.warpType + "]", "#00ccff"]];
-            if (warp.name) contents.push(["name: " + warp.name, "#fff"]);
-            if (warp.map) contents.push(["map: " + warp.map, "#aaffaa"]);
-            if (warp.warpPoint) contents.push(["warp_point: " + warp.warpPoint, "#ffffaa"]);
-            contents.push(["pos: (" + Math.round(warp.x * 10) / 10 + "," + Math.round(warp.y * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["size: (" + Math.round(warp.width * 10) / 10 + "x" + Math.round(warp.height * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["id: " + warp.id, "#999"]);
-
-            // Add custom properties, excluding ones already shown
-            const customProps = getObjectProperties(warp.rawObj).filter(
-              ([text]) => !text.includes("name:") && !text.includes("map:") && !text.includes("warp_point:")
-            );
-            for (const prop of customProps) {
-              contents.push(prop);
+              // Add light cyan fill on hover (only if warp can be interacted with)
+              if (collision && canInteract) {
+                octx.globalAlpha = 0.5;
+                octx.strokeStyle = "#00ccff";
+                octx.lineWidth = 40;
+                octx.stroke(warpPath);
+                octx.globalAlpha = 1.0;
+              }
+            } else {
+              octx.strokeStyle = "#000000";
+              octx.lineWidth = 40;
+              octx.stroke(warpPath);
             }
 
-            newTooltips.set(warp.id, { contents });
+            // Draw progress fill arc (only for warp type and when pressed with valid interaction)
+            if (warp.warpType === "warp" && pressProgress > 0 && canInteract) {
+              octx.strokeStyle = "#00ccff";
+              octx.lineWidth = 40;
+              const startAngle = -Math.PI / 2; // Start from top
+              const endAngle = startAngle + (Math.PI * 2 * pressProgress);
+              const progressPath = new Path2D();
+              progressPath.arc(0, 0, warpRadius, startAngle, endAngle);
+              octx.stroke(progressPath);
+            }
+
+            octx.restore();
+
+            if (collision && showTooltips) {
+              const contents = [["[" + warp.warpType + "]", "#00ccff"]];
+              if (warp.name) contents.push(["name: " + warp.name, "#fff"]);
+              if (warp.map) contents.push(["map: " + warp.map, "#aaffaa"]);
+              if (warp.warpPoint) contents.push(["warp_point: " + warp.warpPoint, "#ffffaa"]);
+              contents.push(["pos: (" + Math.round(warp.x * 10) / 10 + "," + Math.round(warp.y * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["size: (" + Math.round(warp.width * 10) / 10 + "x" + Math.round(warp.height * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["id: " + warp.id, "#999"]);
+
+              // Add custom properties, excluding ones already shown
+              const customProps = getObjectProperties(warp.rawObj).filter(
+                ([text]) => !text.includes("name:") && !text.includes("map:") && !text.includes("warp_point:")
+              );
+              for (const prop of customProps) {
+                contents.push(prop);
+              }
+
+              newTooltips.set(warp.id, { contents });
+            }
+          }
+
+        // Shortcuts
+        if (cfg.showShortcuts && mapData.shortcuts) {
+          for (const sc of mapData.shortcuts) {
+            octx.save();
+            octx.translate(sc.x, sc.y);
+            octx.fillStyle = "#44cc88";
+            octx.strokeStyle = "#33aa66";
+            octx.lineWidth = lw;
+            octx.beginPath();
+
+            const collision = octx.isPointInPath(sc.points, st.cursorX, st.cursorY);
+            octx.globalAlpha = collision ? 0.1 : 0.0;
+            octx.fill(sc.points);
+            octx.globalAlpha = 1.0;
+            octx.stroke(sc.points);
+            octx.restore();
+
+            if (collision && showTooltips) {
+              const contents = [["[shortcut]", "#44cc88"]];
+              if (sc.name) contents.push(["name: " + sc.name, "#fff"]);
+              contents.push(["pos: (" + Math.round(sc.x * 10) / 10 + "," + Math.round(sc.y * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["size: (" + Math.round(sc.width * 10) / 10 + "x" + Math.round(sc.height * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["id: " + sc.id, "#999"]);
+
+              const allProps = getObjectProperties(sc.rawObj);
+              for (const prop of allProps) contents.push(prop);
+
+              newTooltips.set("shortcut_" + sc.id, { contents });
+            }
           }
         }
 
-      // Shortcuts
-      if (cfg.showShortcuts && mapData.shortcuts) {
-        for (const sc of mapData.shortcuts) {
-          octx.save();
-          octx.translate(sc.x, sc.y);
-          octx.fillStyle = "#44cc88";
-          octx.strokeStyle = "#33aa66";
-          octx.lineWidth = lw;
-          octx.beginPath();
+        // Unknown object types
+        if (mapData.unknownObjects) {
+          for (const obj of mapData.unknownObjects) {
+            octx.save();
+            octx.translate(obj.x, obj.y);
+            octx.fillStyle = "#666666";
+            octx.strokeStyle = "#999999";
+            octx.lineWidth = lw;
+            octx.beginPath();
 
-          const collision = octx.isPointInPath(sc.points, st.cursorX, st.cursorY);
-          octx.globalAlpha = collision ? 0.1 : 0.0;
-          octx.fill(sc.points);
-          octx.globalAlpha = 1.0;
-          octx.stroke(sc.points);
-          octx.restore();
+            const collision = octx.isPointInPath(obj.points, st.cursorX, st.cursorY);
+            octx.globalAlpha = collision ? 0.1 : 0.0;
+            octx.fill(obj.points);
+            octx.globalAlpha = 1.0;
+            octx.stroke(obj.points);
+            octx.restore();
 
-          if (collision && showTooltips) {
-            const contents = [["[shortcut]", "#44cc88"]];
-            if (sc.name) contents.push(["name: " + sc.name, "#fff"]);
-            contents.push(["pos: (" + Math.round(sc.x * 10) / 10 + "," + Math.round(sc.y * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["size: (" + Math.round(sc.width * 10) / 10 + "x" + Math.round(sc.height * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["id: " + sc.id, "#999"]);
+            if (collision && showTooltips) {
+              const contents = [["[" + (obj.type || "unknown") + "]", "#ccccff"]];
+              if (obj.name) contents.push(["name: " + obj.name, "#fff"]);
+              contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["size: (" + Math.round(obj.width * 10) / 10 + "x" + Math.round(obj.height * 10) / 10 + ")", "#aaaaff"]);
+              contents.push(["id: " + obj.id, "#999"]);
 
-            const allProps = getObjectProperties(sc.rawObj);
-            for (const prop of allProps) contents.push(prop);
+              // Add all properties to tooltip
+              const allProps = getObjectProperties(obj.rawObj);
+              for (const prop of allProps) {
+                contents.push(prop);
+              }
 
-            newTooltips.set("shortcut_" + sc.id, { contents });
+              // If no properties, show a message
+              if (allProps.length === 0) {
+                contents.push(["(no properties)", "#666"]);
+              }
+
+              newTooltips.set("unknown_" + obj.id, { contents });
+            }
           }
         }
+
+        octx.restore();
       }
-
-      // Unknown object types
-      if (mapData.unknownObjects) {
-        for (const obj of mapData.unknownObjects) {
-          octx.save();
-          octx.translate(obj.x, obj.y);
-          octx.fillStyle = "#666666";
-          octx.strokeStyle = "#999999";
-          octx.lineWidth = lw;
-          octx.beginPath();
-
-          const collision = octx.isPointInPath(obj.points, st.cursorX, st.cursorY);
-          octx.globalAlpha = collision ? 0.1 : 0.0;
-          octx.fill(obj.points);
-          octx.globalAlpha = 1.0;
-          octx.stroke(obj.points);
-          octx.restore();
-
-          if (collision && showTooltips) {
-            const contents = [["[" + (obj.type || "unknown") + "]", "#ccccff"]];
-            if (obj.name) contents.push(["name: " + obj.name, "#fff"]);
-            contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["size: (" + Math.round(obj.width * 10) / 10 + "x" + Math.round(obj.height * 10) / 10 + ")", "#aaaaff"]);
-            contents.push(["id: " + obj.id, "#999"]);
-
-            // Add all properties to tooltip
-            const allProps = getObjectProperties(obj.rawObj);
-            for (const prop of allProps) {
-              contents.push(prop);
-            }
-
-            // If no properties, show a message
-            if (allProps.length === 0) {
-              contents.push(["(no properties)", "#666"]);
-            }
-
-            newTooltips.set("unknown_" + obj.id, { contents });
-          }
-        }
-      }
-
-      octx.restore();
       ctx.drawImage(overlay, 0, 0);
 
       // UI: tooltips (skip if tooltips disabled or key held)
       if (!showTooltips) newTooltips.clear();
       uctx.save();
-      uctx.scale(st.scale * uiS, st.scale * uiS);
+      uctx.scale(st.scale, st.scale);
 
       const pad = 8;
       const cols = 3;

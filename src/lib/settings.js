@@ -14,11 +14,11 @@ const DEFAULT_SETTINGS = {
     hideTooltipKey: "Shift",
 
     // Performance / compatibility
-    lowResolution: false,
-    disableSmoothCamera: false,
-    disableMobIcons: false,
-    disableWarpAnimation: false,
-    reducedOverlay: false,
+    halfCanvasResolution: false, // Render at 50% resolution (stretched to fit)
+    disableOverlayRendering: false, // Skip spawners, checkpoints, warps, shortcuts
+    disableTooltips: false, // Faster than showTooltips toggle (also disables hide-key)
+    disableMobIcons: false, // Don't render mob sprites in tooltips
+    disableSmoothCamera: false, // Instant camera movement
 };
 
 let _settings = { ...DEFAULT_SETTINGS };
