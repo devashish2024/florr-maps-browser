@@ -280,6 +280,13 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
             onClick={() => handleSelect({ type: "help" })}
             onContextMenu={(e) => openContextMenu(e, { type: "help" })}
           />
+          <FileItem
+            icon="⚙️"
+            name="SETTINGS.cfg"
+            active={currentFile?.type === "settings"}
+            onClick={() => handleSelect({ type: "settings" })}
+            onContextMenu={(e) => openContextMenu(e, { type: "settings" })}
+          />
           {!loading && (
             <>
               <FileItem

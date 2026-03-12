@@ -5,6 +5,7 @@ import TileViewer from "./components/TileViewer.jsx";
 import ReadmeViewer from "./components/ReadmeViewer.jsx";
 import MapListViewer from "./components/MapListViewer.jsx";
 import TilesetViewer from "./components/TilesetViewer.jsx";
+import SettingsViewer from "./components/SettingsViewer.jsx";
 import { loadTiles } from "./lib/tileset.js";
 import { loadMapList, loadArchivedMapList } from "./lib/maplist.js";
 import { ensureMapLoaded, ensureArchivedMapLoaded, refreshMap } from "./lib/maploader.js";
@@ -50,6 +51,7 @@ export default function App() {
         if (parsed?.type === "archived_map" && parsed.id) return parsed;
         if (parsed?.type === "readme") return parsed;
         if (parsed?.type === "help") return parsed;
+        if (parsed?.type === "settings") return parsed;
         if (parsed?.type === "tileset") return parsed;
         if (parsed?.type === "tile" && parsed.id != null) return parsed;
         if (parsed?.type === "maplist") return parsed;
@@ -394,7 +396,7 @@ export default function App() {
           ☰
         </button>
 
-        {(loading && currentFile?.type !== "help" || !loading && currentFile?.type === "readme") && <ReadmeViewer src="/README.md" />}
+        {(loading && currentFile?.type !== "help" && currentFile?.type !== "settings" || !loading && currentFile?.type === "readme") && <ReadmeViewer src="/README.md" />}
         {(currentFile?.type === "help") && <ReadmeViewer src="/HELP.md" />}
         {!loading && (currentFile?.type === "map" || currentFile?.type === "archived_map") && mapData && sprites && (
           <MapCanvas
@@ -416,6 +418,9 @@ export default function App() {
             rawTileset={rawTileset}
             onRefreshAllTiles={handleRefreshAllTiles}
           />
+        )}
+        {currentFile?.type === "settings" && (
+          <SettingsViewer />
         )}
         {!loading && currentFile?.type === "maplist" && (
           <MapListViewer

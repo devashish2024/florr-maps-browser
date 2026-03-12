@@ -6,6 +6,7 @@ import { darkened } from "../lib/utils.js";
 import { RarityColor, rarityFromDiff } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
 import { isMapLoaded, findWarpPointInMap } from "../lib/maploader.js";
+import { getSettings } from "../lib/settings.js";
 
 // Helper to color rarity labels if present in text
 const colorRarityInText = (text) => {
@@ -63,6 +64,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       warpHoverMap: new Map(), // Map of warp.id -> timestamp when press started
       warpPressedId: null, // ID of warp currently being pressed (mousedown)
       warpPressedDown: false, // Whether mouse button 0 is down
+      hideTooltipKeyHeld: false, // Whether the hide-tooltip key is currently held
+      dpr: devicePixelRatio, // Current DPR (may be halved by lowResolution)
+      uiScale: 1, // UI canvas scale relative to main canvas
     };
     return stateRef.current;
   }, []);
@@ -96,14 +100,22 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
-      const w = rect.width * devicePixelRatio;
-      const h = rect.height * devicePixelRatio;
+      const cfg = getSettings();
+      const dpr = cfg.lowResolution ? Math.max(1, devicePixelRatio * 0.5) : devicePixelRatio;
+      st.dpr = dpr;
+      const w = rect.width * dpr;
+      const h = rect.height * dpr;
       canvas.width = w;
       canvas.height = h;
       overlay.width = w;
       overlay.height = h;
-      uiCanvas.width = w;
-      uiCanvas.height = h;
+      // Reduced overlay only affects the tooltip canvas
+      const uiDpr = cfg.reducedOverlay ? Math.max(1, dpr * 0.5) : dpr;
+      const uw = rect.width * uiDpr;
+      const uh = rect.height * uiDpr;
+      uiCanvas.width = uw;
+      uiCanvas.height = uh;
+      st.uiScale = uiDpr / dpr;
 
       const scale = Math.max(w / VIEW_W, h / VIEW_H);
       st.scale = scale;
@@ -293,8 +305,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
 
     const onMouseMove = (e) => {
       const r = canvasOffset();
-      const x = (e.clientX - r.left) * devicePixelRatio;
-      const y = (e.clientY - r.top) * devicePixelRatio;
+      const x = (e.clientX - r.left) * st.dpr;
+      const y = (e.clientY - r.top) * st.dpr;
       if (st.grab) {
         st.camera.x += (st.cursorX - x) / st.camera.fovR;
         st.camera.y += (st.cursorY - y) / st.camera.fovR;
@@ -327,8 +339,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       const t = e.touches[0];
       if (!t) return;
       const r = canvasOffset();
-      st.cursorX = (t.clientX - r.left) * devicePixelRatio;
-      st.cursorY = (t.clientY - r.top) * devicePixelRatio;
+      st.cursorX = (t.clientX - r.left) * st.dpr;
+      st.cursorY = (t.clientY - r.top) * st.dpr;
       st.grab = true;
     };
     const onTouchEnd = () => {
@@ -339,14 +351,14 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       const t = e.changedTouches[0];
       if (!t) return;
       const r = canvasOffset();
-      const x = (t.clientX - r.left) * devicePixelRatio;
-      const y = (t.clientY - r.top) * devicePixelRatio;
+      const x = (t.clientX - r.left) * st.dpr;
+      const y = (t.clientY - r.top) * st.dpr;
 
       if (e.touches.length === 2) {
         const a = e.touches[0];
         const b = e.touches[1];
-        const dx = a.clientX * devicePixelRatio - b.clientX * devicePixelRatio;
-        const dy = a.clientY * devicePixelRatio - b.clientY * devicePixelRatio;
+        const dx = a.clientX * st.dpr - b.clientX * st.dpr;
+        const dy = a.clientY * st.dpr - b.clientY * st.dpr;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const diff = dist - st.lastPdist;
         const power = 1.0 + (!st.lastPdist ? 0.0 : diff * 0.005);
@@ -389,6 +401,22 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
 
     const onContextMenu = (e) => e.preventDefault();
 
+    // Hide-tooltip keyboard listeners
+    const onKeyDown = (e) => {
+      const cfg = getSettings();
+      if (cfg.hideTooltipKey && e.key === cfg.hideTooltipKey) {
+        st.hideTooltipKeyHeld = true;
+      }
+    };
+    const onKeyUp = (e) => {
+      const cfg = getSettings();
+      if (cfg.hideTooltipKey && e.key === cfg.hideTooltipKey) {
+        st.hideTooltipKeyHeld = false;
+      }
+    };
+    addEventListener("keydown", onKeyDown);
+    addEventListener("keyup", onKeyUp);
+
     const observer = new ResizeObserver(onResize);
     observer.observe(container);
     addEventListener("mousemove", onMouseMove);
@@ -406,7 +434,15 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       const dt = Math.max(0, time - st.lastTime);
       st.lastTime = time;
 
-      st.camera.update(dt);
+      const cfg = getSettings();
+
+      if (cfg.disableSmoothCamera) {
+        st.camera.rx = st.camera.x;
+        st.camera.ry = st.camera.y;
+        st.camera.fovR = st.camera.fov;
+      } else {
+        st.camera.update(dt);
+      }
 
       // Periodically save camera state to localStorage
       if (time - lastSaveTime > 2000 && mapKeyRef.current) {
@@ -474,6 +510,9 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         }
       }
 
+      // Re-check performance settings each frame (cheap read)
+      const uiS = st.uiScale || 1;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       octx.clearRect(0, 0, overlay.width, overlay.height);
       uctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
@@ -516,6 +555,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       }
 
       const lw = 25;
+      const showTooltips = cfg.showTooltips && !st.hideTooltipKeyHeld;
       const newTooltips = new Map();
 
       // Helper function to get all properties from a raw object
@@ -544,6 +584,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       // Check for tiles under cursor (for tooltip)
       const gridX = Math.floor(st.cursorX / mapData.tilewidth);
       const gridY = Math.floor(st.cursorY / mapData.tileheight);
+      if (!showTooltips) { /* skip tile tooltip */ } else
       if (gridX >= 0 && gridY >= 0 && gridX < mapData.gw && gridY < mapData.gh) {
         const idx = gridY * mapData.gw + gridX;
         // Check all tile layers in reverse order (top layer first)
@@ -588,6 +629,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       }
 
       // Mob spawners
+      if (!cfg.showZoneBorders) { /* skip zone borders */ } else
       for (const spawner of mapData.mobSpawners) {
         octx.save();
         octx.translate(spawner.x, spawner.y);
@@ -603,7 +645,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         octx.stroke(spawner.points);
         octx.restore();
 
-        if (collision) {
+        if (collision && showTooltips) {
           const contents = [];
           contents.push(["[spawn_mobs]", "#ffaaff"]);
           contents.push(["rarity: " + rarityFromDiff(spawner.difficulty).toLowerCase(), spawner.color]);
@@ -658,6 +700,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       }
 
       // Checkpoints
+      if (!cfg.showCheckpoints) { /* skip checkpoints */ } else
       for (const cp of mapData.checkPoints) {
         octx.save();
         octx.translate(cp.x, cp.y);
@@ -673,7 +716,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         octx.stroke(cp.points);
         octx.restore();
 
-        if (collision) {
+        if (collision && showTooltips) {
           const contents = [["[checkpoint]", "#ccffcf"]];
           if (!isNaN(cp.level)) contents.push(["level: " + cp.level, "#fff"]);
           contents.push(["pos: (" + Math.round(cp.x * 10) / 10 + "," + Math.round(cp.y * 10) / 10 + ")", "#aaaaff"]);
@@ -694,9 +737,10 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
 
       // Warps
       const warpRadius = 80;
-      const warpFillDuration = 3000; // 3 seconds in milliseconds
+      const warpFillDuration = cfg.disableWarpAnimation ? 0 : 3000;
       const currentTime = performance.now();
 
+      if (!cfg.showWarps) { /* skip warps */ } else
       for (const warp of mapData.warps) {
         octx.save();
         octx.translate(warp.x, warp.y);
@@ -778,7 +822,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
 
         octx.restore();
 
-        if (collision) {
+        if (collision && showTooltips) {
           const contents = [["[" + warp.warpType + "]", "#00ccff"]];
           if (warp.name) contents.push(["name: " + warp.name, "#fff"]);
           if (warp.map) contents.push(["map: " + warp.map, "#aaffaa"]);
@@ -799,6 +843,38 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         }
       }
 
+      // Shortcuts
+      if (cfg.showShortcuts && mapData.shortcuts) {
+        for (const sc of mapData.shortcuts) {
+          octx.save();
+          octx.translate(sc.x, sc.y);
+          octx.fillStyle = "#44cc88";
+          octx.strokeStyle = "#33aa66";
+          octx.lineWidth = lw;
+          octx.beginPath();
+
+          const collision = octx.isPointInPath(sc.points, st.cursorX, st.cursorY);
+          octx.globalAlpha = collision ? 0.1 : 0.0;
+          octx.fill(sc.points);
+          octx.globalAlpha = 1.0;
+          octx.stroke(sc.points);
+          octx.restore();
+
+          if (collision && showTooltips) {
+            const contents = [["[shortcut]", "#44cc88"]];
+            if (sc.name) contents.push(["name: " + sc.name, "#fff"]);
+            contents.push(["pos: (" + Math.round(sc.x * 10) / 10 + "," + Math.round(sc.y * 10) / 10 + ")", "#aaaaff"]);
+            contents.push(["size: (" + Math.round(sc.width * 10) / 10 + "x" + Math.round(sc.height * 10) / 10 + ")", "#aaaaff"]);
+            contents.push(["id: " + sc.id, "#999"]);
+
+            const allProps = getObjectProperties(sc.rawObj);
+            for (const prop of allProps) contents.push(prop);
+
+            newTooltips.set("shortcut_" + sc.id, { contents });
+          }
+        }
+      }
+
       // Unknown object types
       if (mapData.unknownObjects) {
         for (const obj of mapData.unknownObjects) {
@@ -816,7 +892,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
           octx.stroke(obj.points);
           octx.restore();
 
-          if (collision) {
+          if (collision && showTooltips) {
             const contents = [["[" + (obj.type || "unknown") + "]", "#ccccff"]];
             if (obj.name) contents.push(["name: " + obj.name, "#fff"]);
             contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
@@ -842,9 +918,10 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       octx.restore();
       ctx.drawImage(overlay, 0, 0);
 
-      // UI: tooltips
+      // UI: tooltips (skip if tooltips disabled or key held)
+      if (!showTooltips) newTooltips.clear();
       uctx.save();
-      uctx.scale(st.scale, st.scale);
+      uctx.scale(st.scale * uiS, st.scale * uiS);
 
       const pad = 8;
       const cols = 3;
@@ -987,7 +1064,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         }
 
         // Mob icons
-        if (tooltip.mobs) {
+        if (tooltip.mobs && !cfg.disableMobIcons) {
           const bgColor = tooltip.zoneColor || RarityColor.Common;
           uctx.translate(0, pad);
           let i = 0;
@@ -1040,7 +1117,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
 
       uctx.restore();
       uctx.restore();
-      ctx.drawImage(uiCanvas, 0, 0);
+      ctx.drawImage(uiCanvas, 0, 0, canvas.width, canvas.height);
 
       // Loading fade
       if (st.wrapAlpha > 0) {
@@ -1062,6 +1139,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       observer.disconnect();
       removeEventListener("mousemove", onMouseMove);
       removeEventListener("mouseup", onMouseUp);
+      removeEventListener("keydown", onKeyDown);
+      removeEventListener("keyup", onKeyUp);
       canvas.removeEventListener("mousedown", onMouseDown);
       canvas.removeEventListener("touchstart", onTouchStart);
       canvas.removeEventListener("touchend", onTouchEnd);

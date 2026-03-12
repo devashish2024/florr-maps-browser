@@ -107,6 +107,7 @@ export const parseMap = (mapId) => {
   const specialSprites = [];
   const warps = [];
   const respawnAreas = [];
+  const shortcuts = [];
   const unknownObjects = [];
 
   for (const layer of data.layers) {
@@ -195,6 +196,28 @@ export const parseMap = (mapId) => {
           continue;
         }
 
+        // Shortcut type
+        if (obj.type === "shortcut" && !obj.gid) {
+          const points = new Path2D();
+          if (!obj.polygon) {
+            points.rect(0, 0, w, h);
+          } else {
+            let first = true;
+            for (const p of obj.polygon) {
+              p.x *= 0.75;
+              p.y *= 0.75;
+              if (first) { first = false; points.moveTo(p.x, p.y); continue; }
+              points.lineTo(p.x, p.y);
+            }
+            points.closePath();
+          }
+          shortcuts.push({
+            id: obj.id, x: obj.x, y: obj.y, width: w, height: h, type: obj.type, name: obj.name,
+            points, rawObj: obj,
+          });
+          continue;
+        }
+
         // Unknown object type - collect for display
         if (!obj.gid) {
           const points = new Path2D();
@@ -237,6 +260,7 @@ export const parseMap = (mapId) => {
     specialSprites,
     warps,
     respawnAreas,
+    shortcuts,
     unknownObjects,
     gw: data.width,
     gh: data.height,
