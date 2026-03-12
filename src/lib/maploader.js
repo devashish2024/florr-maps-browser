@@ -83,19 +83,26 @@ export const findWarpPointInMap = (mapId, warpPointName) => {
 
   try {
     const data = JSON.parse(rawText);
+    let fallback = null;
     for (const layer of data.layers) {
       if (!layer.objects) continue;
       for (const obj of layer.objects) {
-        if ((obj.type === "warp_destination" || obj.type === "warp") && obj.name === warpPointName) {
-          // Return center of the warp object, with 0.75 scale applied
-          const result = {
-            x: (obj.x + obj.width / 2) * 0.75,
-            y: (obj.y + obj.height / 2) * 0.75,
-          };
-          console.log(`Found warp "${warpPointName}" in ${mapId}:`, result);
+        if (obj.name !== warpPointName) continue;
+        const cx = (obj.x + (obj.width ?? 0) / 2) * 0.75;
+        const cy = (obj.y + (obj.height ?? 0) / 2) * 0.75;
+        if (obj.type === "warp_destination") {
+          const result = { x: cx, y: cy };
+          console.log(`Found warp_destination "${warpPointName}" in ${mapId}:`, result);
           return result;
         }
+        if (obj.type === "warp" && !fallback) {
+          fallback = { x: cx, y: cy };
+        }
       }
+    }
+    if (fallback) {
+      console.log(`Found warp (fallback) "${warpPointName}" in ${mapId}:`, fallback);
+      return fallback;
     }
     console.log(`Warp "${warpPointName}" NOT found in ${mapId}`);
     return null;
