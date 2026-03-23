@@ -33,5 +33,5 @@ export const rarityFromDiff = (diff) => {
   if (diff > 30 && diff <= 45) return "Legendary";
   if (diff > 45 && diff <= 55) return "Mythic";
   if (diff > 55) return "Ultra";
-  return "Unique";
+  return "Common"
 };
