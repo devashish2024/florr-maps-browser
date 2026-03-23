@@ -69,7 +69,7 @@ function ContextMenu({ x, y, items, onClose }) {
   );
 }
 
-function FolderItem({ name, expanded, onToggle, onContextMenu }) {
+function FolderItem({ name, expanded, indent = 0, onToggle, onContextMenu }) {
   return (
     <div
       onClick={onToggle}
@@ -78,6 +78,7 @@ function FolderItem({ name, expanded, onToggle, onContextMenu }) {
         display: "flex",
         alignItems: "center",
         padding: "3px 8px",
+        paddingLeft: 8 + indent * 18,
         cursor: "pointer",
         color: "#e8e8e8",
         fontSize: 13,
@@ -94,7 +95,7 @@ function FolderItem({ name, expanded, onToggle, onContextMenu }) {
   );
 }
 
-function FileItem({ name, label, icon = "📄", indent = 0, active, disabled, onClick, onContextMenu }) {
+function FileItem({ name, label, secondaryLabel, icon = "📄", indent = 0, active, disabled, onClick, onContextMenu }) {
   return (
     <div
       onClick={disabled ? undefined : onClick}
@@ -119,19 +120,78 @@ function FileItem({ name, label, icon = "📄", indent = 0, active, disabled, on
       onMouseLeave={(e) => {
         if (!active) e.currentTarget.style.background = "transparent";
       }}
-      title={label || name}
+      title={[label || name, secondaryLabel].filter(Boolean).join(" | ")}
     >
       <span style={{ marginRight: 6, flexShrink: 0 }}>{icon}</span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label || name}</span>
+      <span style={{ display: "flex", alignItems: "baseline", gap: 6, overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label || name}</span>
+        {secondaryLabel && (
+          <span style={{ color: active ? "#b8dfff" : "#777", fontSize: 11, flexShrink: 0 }}>
+            {secondaryLabel}
+          </span>
+        )}
+      </span>
     </div>
   );
 }
 
+function buildMapTree(maps) {
+  const root = [];
+  const rootFolders = new Map();
+
+  for (const map of maps) {
+    const parts = map.id.split("/").filter(Boolean);
+    const fileName = `${parts[parts.length - 1]}.tmj`;
+
+    if (parts.length <= 1) {
+      root.push({ type: "file", map, fileName });
+      continue;
+    }
+
+    let children = root;
+    let folders = rootFolders;
+    let currentPath = "";
+
+    for (const part of parts.slice(0, -1)) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      let folder = folders.get(part);
+      if (!folder) {
+        folder = {
+          type: "folder",
+          name: part,
+          path: currentPath,
+          children: [],
+          childFolders: new Map(),
+        };
+        folders.set(part, folder);
+        children.push(folder);
+      }
+      children = folder.children;
+      folders = folder.childFolders;
+    }
+
+    children.push({ type: "file", map, fileName });
+  }
+
+  return root;
+}
+
+function collectFolderFiles(node) {
+  if (node.type === "file") {
+    return [{
+      name: `${node.map.id}.tmj`,
+      url: `https://florr.io/static/maps/${node.map.id}.tmj`,
+    }];
+  }
+
+  return node.children.flatMap(collectFolderFiles);
+}
+
 export default function FileBrowser({ mapList, archivedMapList, tileFiles, currentFile, onFileSelect, width, isMobileOpen, onMobileClose, loading }) {
   const [mapsExpanded, setMapsExpanded] = useState(true);
-  const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [tilesExpanded, setTilesExpanded] = useState(false);
   const [mapsArchivedExpanded, setMapsArchivedExpanded] = useState(false);
+  const [mapFolderExpanded, setMapFolderExpanded] = useState({});
   const [ctxMenu, setCtxMenu] = useState(null);
 
   // Sort maps: available first, errored/disabled at bottom
@@ -141,10 +201,18 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
     return [...ok, ...err];
   }, [mapList]);
 
+  const mapTree = useMemo(() => buildMapTree(sortedMaps), [sortedMaps]);
+
   const handleSelect = (file) => {
     onFileSelect(file);
     onMobileClose?.();
   };
+
+  const isMapFolderOpen = useCallback((path) => mapFolderExpanded[path] ?? true, [mapFolderExpanded]);
+
+  const toggleMapFolder = useCallback((path) => {
+    setMapFolderExpanded((prev) => ({ ...prev, [path]: !(prev[path] ?? true) }));
+  }, []);
 
   const downloadFolder = useCallback(async (folderName, files) => {
     const zip = new JSZip();
@@ -193,6 +261,45 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
     });
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, []);
+
+  const renderMapNode = useCallback((node, indent = 1) => {
+    if (node.type === "folder") {
+      const expanded = isMapFolderOpen(node.path);
+      const downloadableFiles = collectFolderFiles(node).filter((file) => {
+        const id = file.name.replace(/\.tmj$/, "");
+        return !mapList.find((map) => map.id === id)?.disabled;
+      });
+
+      return (
+        <div key={`folder:${node.path}`}>
+          <FolderItem
+            name={node.name}
+            indent={indent}
+            expanded={expanded}
+            onToggle={() => toggleMapFolder(node.path)}
+            onContextMenu={(e) => openFolderContextMenu(e, node.path.replaceAll("/", "_"), downloadableFiles)}
+          />
+          {expanded && node.children.map((child) => renderMapNode(child, indent + 1))}
+        </div>
+      );
+    }
+
+    const { map, fileName } = node;
+    return (
+      <FileItem
+        key={map.id}
+        icon={map.disabled ? "⚠️" : "🗺️"}
+        name={`${map.id}.tmj`}
+        label={map.disabled ? `${map.name} (error)` : map.name}
+        secondaryLabel={fileName}
+        indent={indent}
+        active={currentFile?.type === "map" && currentFile?.id === map.id}
+        disabled={map.disabled}
+        onClick={() => handleSelect({ type: "map", id: map.id })}
+        onContextMenu={(e) => openContextMenu(e, { type: "map", id: map.id })}
+      />
+    );
+  }, [currentFile?.id, currentFile?.type, handleSelect, isMapFolderOpen, mapList, openContextMenu, openFolderContextMenu, toggleMapFolder]);
 
   return (
     <>
@@ -332,6 +439,7 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                           icon={m.disabled ? "⚠️" : "🗺️"}
                           name={`${m.id}.tmj`}
                           label={m.disabled ? `${m.name} (error)` : m.name}
+                          secondaryLabel={`${m.id}.tmj`}
                           indent={2}
                           active={currentFile?.type === "archived_map" && currentFile?.id === m.id}
                           disabled={m.disabled}
@@ -343,19 +451,7 @@ export default function FileBrowser({ mapList, archivedMapList, tileFiles, curre
                 </>
               )}
               {/* Render the rest of the maps after archived/ */}
-              {mapsExpanded && sortedMaps.map((m) => (
-                <FileItem
-                  key={m.id}
-                  icon={m.disabled ? "⚠️" : "🗺️"}
-                  name={`${m.id}.tmj`}
-                  label={m.disabled ? `${m.name} (error)` : m.name}
-                  indent={1}
-                  active={currentFile?.type === "map" && currentFile?.id === m.id}
-                  disabled={m.disabled}
-                  onClick={() => handleSelect({ type: "map", id: m.id })}
-                  onContextMenu={(e) => openContextMenu(e, { type: "map", id: m.id })}
-                />
-              ))}
+              {mapsExpanded && mapTree.map((node) => renderMapNode(node, 1))}
             </>
           )}
 
