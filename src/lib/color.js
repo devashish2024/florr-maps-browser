@@ -8,6 +8,7 @@ const RarityColor = {
   Ultra: "#ff2b75",
   Super: "#2bffa3",
   Unique: "#555555",
+  Eternal: "#ffffff",
 };
 
 export { RarityColor };
@@ -20,8 +21,9 @@ export const colorFromDiff = (diff) => {
   if (diff > 20 && diff <= 30) return RarityColor.Epic;
   if (diff > 30 && diff <= 45) return RarityColor.Legendary;
   if (diff > 45 && diff <= 55) return RarityColor.Mythic;
-  if (diff > 55) return RarityColor.Ultra;
-  return RarityColor.Unique;
+  if (diff > 55 && diff <= 70) return RarityColor.Ultra;
+  if (diff > 70) return RarityColor.Eternal;
+  return RarityColor.Common;
 };
 
 export const rarityFromDiff = (diff) => {
@@ -32,6 +34,7 @@ export const rarityFromDiff = (diff) => {
   if (diff > 20 && diff <= 30) return "Epic";
   if (diff > 30 && diff <= 45) return "Legendary";
   if (diff > 45 && diff <= 55) return "Mythic";
-  if (diff > 55) return "Ultra";
+  if (diff > 55 && diff <= 70) return "Ultra";
+  if (diff > 70) return "Eternal";
   return "Common"
 };

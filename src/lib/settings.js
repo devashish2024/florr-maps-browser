@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS = {
 
     // Performance / compatibility
     halfCanvasResolution: false, // Render at 50% resolution (stretched to fit)
-    disableOverlayRendering: false, // Skip spawners, checkpoints, warps, shortcuts
+    disableOverlayRendering: false, // Skip spawners, spawn_drops, checkpoints, warps, shortcuts
     disableTooltips: false, // Faster than showTooltips toggle (also disables hide-key)
     disableMobIcons: false, // Don't render mob sprites in tooltips
     disableSmoothCamera: false, // Instant camera movement

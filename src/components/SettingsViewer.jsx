@@ -210,7 +210,7 @@ export default function SettingsViewer() {
                     />
                     <Toggle
                         label="Zone Borders"
-                        description="Show [spawn_mobs] difficulty-colored zone outlines"
+                        description="Show [spawn_mobs] zone outlines and [spawn_drops] markers"
                         checked={settings.showZoneBorders}
                         onChange={(v) => setSetting("showZoneBorders", v)}
                     />
@@ -274,7 +274,7 @@ export default function SettingsViewer() {
                     />
                     <Toggle
                         label="Skip Overlay Rendering"
-                        description="Don't render zone borders, checkpoints, warps, shortcuts — huge FPS gain if many objects"
+                        description="Don't render zone borders, spawn_drops, checkpoints, warps, shortcuts — huge FPS gain if many objects"
                         checked={settings.disableOverlayRendering}
                         onChange={(v) => setSetting("disableOverlayRendering", v)}
                     />

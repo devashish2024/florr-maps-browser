@@ -13,6 +13,41 @@ const getPropertyStr = (name, props) => {
   return p?.value?.toString();
 };
 
+const POINT_MARKER_RADIUS = 110;
+
+const buildObjectPath = (obj, width, height) => {
+  const points = new Path2D();
+
+  if (obj.point === true || (!obj.polygon && width === 0 && height === 0)) {
+    points.arc(0, 0, POINT_MARKER_RADIUS, 0, Math.PI * 2);
+    return { points, width, height, isPoint: true };
+  }
+
+  if (!obj.polygon) {
+    points.rect(0, 0, width, height);
+    return { points, width, height, isPoint: false };
+  }
+
+  let first = true;
+  let pw = 0;
+  let ph = 0;
+  for (const p of obj.polygon) {
+    p.x *= 0.75;
+    p.y *= 0.75;
+    if (pw < p.x) pw = p.x;
+    if (ph < p.y) ph = p.y;
+    if (first) {
+      first = false;
+      points.moveTo(p.x, p.y);
+      continue;
+    }
+    points.lineTo(p.x, p.y);
+  }
+  points.closePath();
+
+  return { points, width: width || pw, height: height || ph, isPoint: false };
+};
+
 const extractBiomeMobs = (mobstr) => {
   if (!mobstr) return { mobs: [], isBiome: false, biomeName: null };
 
@@ -107,6 +142,7 @@ export const parseMap = (mapId) => {
   const specialSprites = [];
   const warps = [];
   const respawnAreas = [];
+  const spawnDrops = [];
   const shortcuts = [];
   const unknownObjects = [];
 
@@ -126,20 +162,18 @@ export const parseMap = (mapId) => {
 
         if (obj.type === "checkpoint") {
           const level = getProperty("level", obj.properties);
-          const points = new Path2D();
-          points.rect(0, 0, w, h);
+          const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
           checkPoints.push({
-            id: obj.id, x: obj.x, y: obj.y, width: w, height: h,
-            level: isNaN(level) ? 0 : level, points, rawObj: obj,
+            id: obj.id, x: obj.x, y: obj.y, width, height,
+            level: isNaN(level) ? 0 : level, points, rawObj: obj, isPoint,
           });
           continue;
         }
 
         if (obj.type === "respawn_area") {
-          const points = new Path2D();
-          points.rect(0, 0, w, h);
+          const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
           respawnAreas.push({
-            id: obj.id, x: obj.x, y: obj.y, width: w, height: h, points, rawObj: obj,
+            id: obj.id, x: obj.x, y: obj.y, width, height, points, rawObj: obj, isPoint,
           });
           continue;
         }
@@ -163,79 +197,42 @@ export const parseMap = (mapId) => {
           const mobstr = getPropertyStr("mobs", obj.properties);
 
           const { mobs, isBiome, biomeName } = extractBiomeMobs(mobstr);
-          const points = new Path2D();
           const color = colorFromDiff(difficulty);
-
-          if (!obj.polygon) {
-            points.rect(0, 0, w, h);
-            mobSpawners.push({
-              id: obj.id, x: obj.x, y: obj.y, width: w, height: h,
-              mobs, points, difficulty, density, extraSpawnDelay, forceRarity, team,
-              color, big: w > 25252 && h > 25252, rawObj: obj, isBiome, biomeName,
-            });
-            continue;
-          }
-
-          let first = true;
-          let pw = 0, ph = 0;
-          for (const p of obj.polygon) {
-            p.x *= 0.75;
-            p.y *= 0.75;
-            if (pw < p.x) pw = p.x;
-            if (ph < p.y) ph = p.y;
-            if (first) { first = false; points.moveTo(p.x, p.y); continue; }
-            points.lineTo(p.x, p.y);
-          }
-          points.closePath();
+          const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
 
           mobSpawners.push({
-            id: obj.id, x: obj.x, y: obj.y, width: w || pw, height: h || ph,
+            id: obj.id, x: obj.x, y: obj.y, width, height,
             mobs, points, difficulty, density, extraSpawnDelay, forceRarity, team,
-            color, big: (w || pw) > 25252 && (h || ph) > 25252, rawObj: obj, isBiome, biomeName,
+            color, big: width > 25252 && height > 25252, rawObj: obj, isBiome, biomeName, isPoint,
+          });
+          continue;
+        }
+
+        if (obj.type === "spawn_drops") {
+          const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
+          spawnDrops.push({
+            id: obj.id, x: obj.x, y: obj.y, width, height,
+            type: obj.type, name: obj.name, points, rawObj: obj, isPoint,
           });
           continue;
         }
 
         // Shortcut type
         if (obj.type === "shortcut" && !obj.gid) {
-          const points = new Path2D();
-          if (!obj.polygon) {
-            points.rect(0, 0, w, h);
-          } else {
-            let first = true;
-            for (const p of obj.polygon) {
-              p.x *= 0.75;
-              p.y *= 0.75;
-              if (first) { first = false; points.moveTo(p.x, p.y); continue; }
-              points.lineTo(p.x, p.y);
-            }
-            points.closePath();
-          }
+          const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
           shortcuts.push({
-            id: obj.id, x: obj.x, y: obj.y, width: w, height: h, type: obj.type, name: obj.name,
-            points, rawObj: obj,
+            id: obj.id, x: obj.x, y: obj.y, width, height, type: obj.type, name: obj.name,
+            points, rawObj: obj, isPoint,
           });
           continue;
         }
 
         // Unknown object type - collect for display
         if (!obj.gid) {
-          const points = new Path2D();
-          if (!obj.polygon) {
-            points.rect(0, 0, w, h);
-          } else {
-            let first = true;
-            for (const p of obj.polygon) {
-              p.x *= 0.75;
-              p.y *= 0.75;
-              if (first) { first = false; points.moveTo(p.x, p.y); continue; }
-              points.lineTo(p.x, p.y);
-            }
-            points.closePath();
-          }
+          const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
           unknownObjects.push({
-            id: obj.id, x: obj.x, y: obj.y, width: w, height: h, type: obj.type, name: obj.name,
-            points, rawObj: obj,
+            id: obj.id, x: obj.x, y: obj.y, width, height, type: obj.type, name: obj.name,
+            points, rawObj: obj, isPoint,
           });
         }
       }
@@ -260,6 +257,7 @@ export const parseMap = (mapId) => {
     specialSprites,
     warps,
     respawnAreas,
+    spawnDrops,
     shortcuts,
     unknownObjects,
     gw: data.width,

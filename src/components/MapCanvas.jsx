@@ -537,7 +537,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       const showTooltips = !cfg.disableTooltips && cfg.showTooltips && !st.hideTooltipKeyHeld;
       const newTooltips = new Map();
 
-      // Game overlay (spawners, checkpoints, special sprites)
+      // Game overlay (spawners, spawn drops, checkpoints, special sprites)
       if (!cfg.disableOverlayRendering) {
         octx.save();
         octx.scale(st.scale, st.scale);
@@ -624,8 +624,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
             }
           }
 
-        // Mob spawners
-        if (!cfg.showZoneBorders) { /* skip zone borders */ } else
+        // Mob spawners and drop spawn markers
+        if (!cfg.showZoneBorders) { /* skip zone borders and spawn drop markers */ } else {
           for (const spawner of mapData.mobSpawners) {
             octx.save();
             octx.translate(spawner.x, spawner.y);
@@ -694,6 +694,48 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
               newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq, zoneColor: spawner.color });
             }
           }
+
+          if (mapData.spawnDrops) {
+            for (const drop of mapData.spawnDrops) {
+              octx.save();
+              octx.translate(drop.x, drop.y);
+              octx.fillStyle = "#ffd34d";
+              octx.strokeStyle = "#ff9f1a";
+              octx.lineWidth = drop.isPoint ? 18 : lw;
+
+              const collision = octx.isPointInPath(drop.points, st.cursorX, st.cursorY);
+              octx.globalAlpha = collision ? 0.22 : (drop.isPoint ? 0.1 : 0.04);
+              octx.fill(drop.points);
+              octx.globalAlpha = 1.0;
+              octx.stroke(drop.points);
+
+              if (drop.isPoint) {
+                octx.fillStyle = collision ? "#fff2a6" : "#ffe07a";
+                octx.beginPath();
+                octx.arc(0, 0, 28, 0, Math.PI * 2);
+                octx.fill();
+              }
+
+              octx.restore();
+
+              if (collision && showTooltips) {
+                const contents = [["[spawn_drops]", "#ffd34d"]];
+                if (drop.name) contents.push(["name: " + drop.name, "#fff"]);
+                contents.push(["pos: (" + Math.round(drop.x * 10) / 10 + "," + Math.round(drop.y * 10) / 10 + ")", "#aaaaff"]);
+                contents.push(["size: (" + Math.round(drop.width * 10) / 10 + "x" + Math.round(drop.height * 10) / 10 + ")", "#aaaaff"]);
+                contents.push(["id: " + drop.id, "#999"]);
+
+                const allProps = getObjectProperties(drop.rawObj);
+                for (const prop of allProps) {
+                  const rarityColored = colorRarityInText(prop[0]);
+                  contents.push(rarityColored || prop);
+                }
+
+                newTooltips.set("spawn_drop_" + drop.id, { contents });
+              }
+            }
+          }
+        }
 
         // Checkpoints
         if (!cfg.showCheckpoints) { /* skip checkpoints */ } else
