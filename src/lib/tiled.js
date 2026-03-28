@@ -48,95 +48,98 @@ const buildObjectPath = (obj, width, height) => {
   return { points, width: width || pw, height: height || ph, isPoint: false };
 };
 
+const parseMobEntry = (entry) => {
+  const parts = entry.split(":");
+  const rawName = parts[0]?.trim();
+  const normalizedName = rawName?.toLowerCase();
+  const id = revmap.get(normalizedName) ?? -1;
+  if (id === -1) {
+    return {
+      id: -1,
+      chance: parseFloat(parts[1]) || 0,
+      isUnknown: true,
+      name: normalizedName || "unknown",
+    };
+  }
+  return { id, chance: parseFloat(parts[1]) || 0, name: normalizedName };
+};
+
 const extractBiomeMobs = (mobstr) => {
   if (!mobstr) return { mobs: [], isBiome: false, biomeName: null };
 
-  const cleanStr = mobstr?.toLowerCase().trim();
+  const cleanStr = mobstr.toLowerCase().replaceAll("\n", "").trim();
+  const semicolonParts = cleanStr.split(";").map((part) => part.trim()).filter(Boolean);
 
-  // Check for biome format: "biome" or "biome,mob1=weight1,mob2=weight2,..."
-  const parts = cleanStr.split(",").map(p => p.trim());
-  const potentialBiome = parts[0];
-
-  for (const [biomeKey, biomeConfig] of Object.entries(biomeSpawns)) {
-    if (potentialBiome === biomeKey) {
-      // Parse weight overrides (e.g., "ladybug=2,hornet=3")
-      const weightedMobs = new Map();
-      let totalWeight = 0;
-
-      for (let i = 1; i < parts.length; i++) {
-        const override = parts[i];
-        if (override.includes("=")) {
-          const [mobName, weightStr] = override.split("=");
-          const cleanMobName = mobName.trim();
-          const weight = parseFloat(weightStr.trim()) || 0;
-
-          const id = revmap.get(cleanMobName) ?? -1;
-          if (id !== -1) {
-            weightedMobs.set(cleanMobName, { id, chance: weight, isWeighted: true });
-            totalWeight += weight;
-          }
-        }
-      }
-
-      // Build final mobs array
-      const biomeMobs = [];
-
-      // Add biome mobs (with ? for unknown ones, or weighted ones)
-      for (const mobName of biomeConfig.mobs) {
-        const id = revmap.get(mobName) ?? -1;
-        if (id !== -1) {
-          if (weightedMobs.has(mobName)) {
-            // This mob has a weight override
-            const weighted = weightedMobs.get(mobName);
-            biomeMobs.push({
-              id,
-              chance: weighted.chance,
-              isWeighted: true
-            });
-          } else {
-            // This biome mob has unknown chance
-            biomeMobs.push({
-              id,
-              chance: 0, // Store 0, but will display as "?"
-              isUnknown: true
-            });
-          }
-        }
-      }
-
-      // Add any weighted mobs not in the biome (shouldn't happen, but just in case)
-      for (const [mobName, mobData] of weightedMobs) {
-        if (!biomeConfig.mobs.includes(mobName)) {
-          biomeMobs.push(mobData);
-        }
-      }
-
-      return { mobs: biomeMobs, isBiome: true, biomeName: biomeConfig.displayName, totalWeight };
+  let biomeKey = null;
+  for (const part of semicolonParts) {
+    const biomeCandidate = part.split(",")[0]?.split(":")[0]?.trim();
+    if (biomeCandidate && biomeSpawns[biomeCandidate]) {
+      biomeKey = biomeCandidate;
+      break;
     }
   }
 
-  // Fall back to parsing mobs string (mob:chance;mob:chance format)
-  const mobs = mobstr
-    ?.replaceAll("\n", "")
-    .split(";")
-    .filter((x) => x.trim())
-    .map((x) => {
-      const parts = x.replace(";", "").split(":");
-      const rawName = parts[0]?.trim();
-      const normalizedName = rawName?.toLowerCase();
-      const id = revmap.get(normalizedName) ?? -1;
-      if (id === -1) {
-        return {
-          id: -1,
-          chance: parseFloat(parts[1]) || 0,
-          isUnknown: true,
-          name: normalizedName || "unknown",
-        };
-      }
-      return { id, chance: parseFloat(parts[1]) || 0, name: normalizedName };
-    })
-    .filter((mob) => mob !== null) ?? [];
+  if (biomeKey) {
+    const biomeConfig = biomeSpawns[biomeKey];
+    const extraMobs = [];
+    let biomeWeight = 0;
 
+    for (const part of semicolonParts) {
+      if (!part) continue;
+
+      const commaParts = part.split(",").map((item) => item.trim()).filter(Boolean);
+      for (const item of commaParts) {
+        const itemName = item.split(":")[0]?.trim();
+        if (!item) continue;
+
+        if (itemName === biomeKey) {
+          const biomeValue = item.split(":")[1];
+          biomeWeight = parseFloat(biomeValue?.trim()) || biomeWeight;
+          continue;
+        }
+
+        if (item.includes("=")) {
+          const [mobName, weightStr] = item.split("=");
+          const cleanMobName = mobName.trim();
+          const normalizedName = cleanMobName.toLowerCase();
+          const id = revmap.get(normalizedName) ?? -1;
+          if (id !== -1) {
+            extraMobs.push({ id, chance: parseFloat(weightStr.trim()) || 0, isWeighted: true, name: normalizedName });
+          } else {
+            extraMobs.push({
+              id: -1,
+              chance: parseFloat(weightStr.trim()) || 0,
+              isUnknown: true,
+              name: normalizedName || "unknown",
+            });
+          }
+          continue;
+        }
+
+        if (item.includes(":")) {
+          const parsed = parseMobEntry(item);
+          extraMobs.push(parsed);
+        }
+      }
+    }
+
+    const biomeMobs = [];
+    for (const mobName of biomeConfig.mobs) {
+      const id = revmap.get(mobName) ?? -1;
+      if (id === -1) continue;
+
+      biomeMobs.push({
+        id,
+        chance: 0,
+        isUnknown: true,
+        name: mobName,
+      });
+    }
+
+    return { mobs: [...biomeMobs, ...extraMobs], isBiome: true, biomeName: biomeConfig.displayName, biomeWeight };
+  }
+
+  const mobs = semicolonParts.map(parseMobEntry);
   return { mobs, isBiome: false, biomeName: null };
 };
 
@@ -205,7 +208,7 @@ export const parseMap = (mapId) => {
           const team = getProperty("team", obj.properties);
           const mobstr = getPropertyStr("mobs", obj.properties);
 
-          const { mobs, isBiome, biomeName } = extractBiomeMobs(mobstr);
+          const { mobs, isBiome, biomeName, biomeWeight } = extractBiomeMobs(mobstr);
           const rarityInfo = effectiveRarityFromSpawner(difficulty, forceRarity);
           const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
 
@@ -216,6 +219,7 @@ export const parseMap = (mapId) => {
             baseRarity: rarityInfo.baseRarity,
             forcedRarityName: rarityInfo.forcedRarity,
             effectiveRarity: rarityInfo.effectiveRarity,
+            biomeWeight,
             big: width > 25252 && height > 25252, rawObj: obj, isBiome, biomeName, isPoint,
           });
           continue;

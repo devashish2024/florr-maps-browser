@@ -18,8 +18,11 @@ const colorRarityInText = (text) => {
   return null;
 };
 
-const strikeText = (text) => {
-  return [...text].map((char) => `${char}\u0336`).join("");
+const getTooltipLine = (entry) => {
+  if (Array.isArray(entry)) {
+    return { text: entry[0], fill: entry[1], strike: false };
+  }
+  return { text: entry.text, fill: entry.fill, strike: Boolean(entry.strike) };
 };
 
 export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapChange, cameraTarget, onCameraTargetApplied }) {
@@ -671,7 +674,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
               const rarityText = "rarity: " + spawner.effectiveRarity.toLowerCase();
               if (spawner.forcedRarityName && spawner.baseRarity !== spawner.effectiveRarity) {
                 contents.push([rarityText, spawner.color]);
-                contents.push([strikeText("rarity: " + spawner.baseRarity.toLowerCase()), "#9aa0a6"]);
+                contents.push({ text: "rarity: " + spawner.baseRarity.toLowerCase(), fill: "#9aa0a6", strike: true });
               } else {
                 contents.push([rarityText, spawner.color]);
               }
@@ -707,6 +710,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
               // For regular zones: calculate percentages normally
               const weightedMobs = spawner.mobs.filter(m => m.isWeighted);
               const totalWeight = weightedMobs.reduce((a, m) => a + m.chance, 0);
+              const regularMobs = spawner.mobs.filter((m) => !m.isUnknown && !m.isWeighted);
+              const regularTotalWeight = regularMobs.reduce((a, mob) => a + (mob.chance || 0), 0) + (spawner.biomeWeight || 0);
 
               const mobsWithFreq = spawner.mobs.map((m) => {
                 let chance;
@@ -715,14 +720,26 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
                 } else if (m.isWeighted) {
                   chance = totalWeight > 0 ? (Math.round((m.chance / totalWeight) * 100) + "%") : "?";
                 } else {
-                  // Regular mob with chance value
-                  const regTotalWeight = spawner.mobs.reduce((a, mob) => a + (mob.chance || 0), 0);
-                  chance = regTotalWeight > 0 ? (Math.round((m.chance / regTotalWeight) * 100) + "%") : "?";
+                  chance = regularTotalWeight > 0 ? (Math.round((m.chance / regularTotalWeight) * 100) + "%") : "?";
                 }
                 return { ...m, chance };
               });
+              mobsWithFreq.sort((a, b) => {
+                const aUnknown = a.chance === "?";
+                const bUnknown = b.chance === "?";
+                if (aUnknown === bUnknown) return 0;
+                return aUnknown ? 1 : -1;
+              });
+              const dedupedMobsWithFreq = [];
+              const seenMobKeys = new Set();
+              for (const mob of mobsWithFreq) {
+                const mobKey = mob.name || mob.id;
+                if (seenMobKeys.has(mobKey)) continue;
+                seenMobKeys.add(mobKey);
+                dedupedMobsWithFreq.push(mob);
+              }
 
-              newTooltips.set(spawner.id, { contents, mobs: mobsWithFreq, zoneColor: spawner.color });
+              newTooltips.set(spawner.id, { contents, mobs: dedupedMobsWithFreq, zoneColor: spawner.color });
             }
           }
 
@@ -1076,7 +1093,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       const getTipDimensions = (tooltip) => {
         const maxTextW = tooltip.mobs ? tipWMobs - pad * 2 : tipWNoMobs - pad * 2;
         let totalLines = 0;
-        for (const [text] of tooltip.contents) {
+        for (const entry of tooltip.contents) {
+          const { text } = getTooltipLine(entry);
           const wrapped = wrapText(text, maxTextW);
           totalLines += wrapped.length;
         }
@@ -1122,13 +1140,32 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         uctx.translate(pad, pad);
 
         // Content lines — wrap to next line instead of truncating
-        for (const [text, fill] of tooltip.contents) {
+        for (const entry of tooltip.contents) {
+          const { text, fill, strike } = getTooltipLine(entry);
           uctx.font = `${fontSize}px GameMono, monospace`;
           const wrappedLines = wrapText(text, maxTextW);
           uctx.fillStyle = fill;
           for (const line of wrappedLines) {
             uctx.strokeText(line, 0, 0);
             uctx.fillText(line, 0, 0);
+            if (strike) {
+              const width = uctx.measureText(line).width;
+              const y = Math.round(fontSize * 0.52);
+              uctx.save();
+              uctx.strokeStyle = "#000";
+              uctx.lineWidth = 3;
+              uctx.beginPath();
+              uctx.moveTo(0, y);
+              uctx.lineTo(width, y);
+              uctx.stroke();
+              uctx.strokeStyle = fill;
+              uctx.lineWidth = 1.5;
+              uctx.beginPath();
+              uctx.moveTo(0, y);
+              uctx.lineTo(width, y);
+              uctx.stroke();
+              uctx.restore();
+            }
             uctx.translate(0, lineH);
           }
         }
