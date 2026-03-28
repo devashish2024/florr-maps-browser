@@ -65,6 +65,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       warpPressedId: null, // ID of warp currently being pressed (mousedown)
       warpPressedDown: false, // Whether mouse button 0 is down
       hideTooltipKeyHeld: false, // Whether the hide-tooltip key is currently held
+      altHeld: false, // Whether Alt is currently held for spawn zone preview
       dpr: devicePixelRatio, // Current DPR (may be halved by lowResolution)
       uiScale: 1, // UI canvas scale relative to main canvas
     };
@@ -401,18 +402,29 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
     // Hide-tooltip keyboard listeners
     const onKeyDown = (e) => {
       const cfg = getSettings();
+      if (e.key === "Alt") {
+        st.altHeld = true;
+      }
       if (cfg.hideTooltipKey && e.key === cfg.hideTooltipKey) {
         st.hideTooltipKeyHeld = true;
       }
     };
     const onKeyUp = (e) => {
       const cfg = getSettings();
+      if (e.key === "Alt") {
+        st.altHeld = false;
+      }
       if (cfg.hideTooltipKey && e.key === cfg.hideTooltipKey) {
         st.hideTooltipKeyHeld = false;
       }
     };
+    const onWindowBlur = () => {
+      st.altHeld = false;
+      st.hideTooltipKeyHeld = false;
+    };
     addEventListener("keydown", onKeyDown);
     addEventListener("keyup", onKeyUp);
+    addEventListener("blur", onWindowBlur);
 
     const observer = new ResizeObserver(onResize);
     observer.observe(container);
@@ -534,7 +546,8 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
 
       // Tooltip state (used both inside and outside the overlay rendering block)
       const lw = 25;
-      const showTooltips = !cfg.disableTooltips && cfg.showTooltips && !st.hideTooltipKeyHeld;
+      const previewSpawnZones = st.altHeld;
+      const showTooltips = !previewSpawnZones && !cfg.disableTooltips && cfg.showTooltips && !st.hideTooltipKeyHeld;
       const newTooltips = new Map();
 
       // Game overlay (spawners, spawn drops, checkpoints, special sprites)
@@ -625,7 +638,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
           }
 
         // Mob spawners and drop spawn markers
-        if (!cfg.showZoneBorders) { /* skip zone borders and spawn drop markers */ } else {
+        if (!cfg.showZoneBorders && !previewSpawnZones) { /* skip zone borders and spawn drop markers */ } else {
           for (const spawner of mapData.mobSpawners) {
             octx.save();
             octx.translate(spawner.x, spawner.y);
@@ -635,10 +648,12 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
             octx.beginPath();
 
             const collision = octx.isPointInPath(spawner.points, st.cursorX, st.cursorY);
-            octx.globalAlpha = collision ? (spawner.big ? 0.0 : 0.1) : 0.0;
+            octx.globalAlpha = previewSpawnZones ? 0.6 : (collision ? (spawner.big ? 0.0 : 0.1) : 0.0);
             octx.fill(spawner.points);
             octx.globalAlpha = 1.0;
-            octx.stroke(spawner.points);
+            if (!previewSpawnZones) {
+              octx.stroke(spawner.points);
+            }
             octx.restore();
 
             if (collision && showTooltips) {
@@ -695,7 +710,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
             }
           }
 
-          if (mapData.spawnDrops) {
+          if (!previewSpawnZones && mapData.spawnDrops) {
             for (const drop of mapData.spawnDrops) {
               octx.save();
               octx.translate(drop.x, drop.y);
@@ -738,7 +753,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         }
 
         // Checkpoints
-        if (!cfg.showCheckpoints) { /* skip checkpoints */ } else
+        if (!previewSpawnZones && !cfg.showCheckpoints) { /* skip checkpoints */ } else if (!previewSpawnZones)
           for (const cp of mapData.checkPoints) {
             octx.save();
             octx.translate(cp.x, cp.y);
@@ -778,7 +793,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         const warpFillDuration = 3000; // 3 seconds in milliseconds
         const currentTime = performance.now();
 
-        if (!cfg.showWarps) { /* skip warps */ } else
+        if (!previewSpawnZones && !cfg.showWarps) { /* skip warps */ } else if (!previewSpawnZones)
           for (const warp of mapData.warps) {
             octx.save();
             octx.translate(warp.x, warp.y);
@@ -882,7 +897,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
           }
 
         // Shortcuts
-        if (cfg.showShortcuts && mapData.shortcuts) {
+        if (!previewSpawnZones && cfg.showShortcuts && mapData.shortcuts) {
           for (const sc of mapData.shortcuts) {
             octx.save();
             octx.translate(sc.x, sc.y);
@@ -914,7 +929,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         }
 
         // Unknown object types
-        if (mapData.unknownObjects) {
+        if (!previewSpawnZones && mapData.unknownObjects) {
           for (const obj of mapData.unknownObjects) {
             octx.save();
             octx.translate(obj.x, obj.y);
@@ -1180,6 +1195,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
       removeEventListener("mouseup", onMouseUp);
       removeEventListener("keydown", onKeyDown);
       removeEventListener("keyup", onKeyUp);
+      removeEventListener("blur", onWindowBlur);
       canvas.removeEventListener("mousedown", onMouseDown);
       canvas.removeEventListener("touchstart", onTouchStart);
       canvas.removeEventListener("touchend", onTouchEnd);
