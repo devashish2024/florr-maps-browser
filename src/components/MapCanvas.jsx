@@ -594,8 +594,10 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
         };
 
         // Check for tiles under cursor (for tooltip)
-        const gridX = Math.floor(st.cursorX / mapData.tilewidth);
-        const gridY = Math.floor(st.cursorY / mapData.tileheight);
+        const cursorWorldX = st.cameraX + (st.cursorX / st.scale) / st.cameraScale;
+        const cursorWorldY = st.cameraY + (st.cursorY / st.scale) / st.cameraScale;
+        const gridX = Math.floor(cursorWorldX / mapData.tilewidth);
+        const gridY = Math.floor(cursorWorldY / mapData.tileheight);
         if (!showTooltips) { /* skip tile tooltip */ } else
           if (gridX >= 0 && gridY >= 0 && gridX < mapData.gw && gridY < mapData.gh) {
             const idx = gridY * mapData.gw + gridX;
@@ -611,7 +613,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
                     const contents = [];
                     contents.push(["layer: " + (layer.name || "unnamed"), "#aaffaa"]);
                     contents.push(["grid: (" + gridX + "," + gridY + ")", "#aaaaff"]);
-                    contents.push(["world: (" + Math.round(st.cursorX * 10) / 10 + "," + Math.round(st.cursorY * 10) / 10 + ")", "#aaaaff"]);
+                    contents.push(["world: (" + Math.round(cursorWorldX * 10) / 10 + "," + Math.round(cursorWorldY * 10) / 10 + ")", "#aaaaff"]);
                     contents.push(["tile_id: " + tileId, "#999"]);
                     contents.push(["raw: 0x" + rawTileId.toString(16).toUpperCase().padStart(8, "0"), "#666"]);
 
