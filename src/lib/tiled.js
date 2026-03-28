@@ -123,16 +123,17 @@ const extractBiomeMobs = (mobstr) => {
     .map((x) => {
       const parts = x.replace(";", "").split(":");
       const rawName = parts[0]?.trim();
-      const id = revmap.get(rawName) ?? -1;
+      const normalizedName = rawName?.toLowerCase();
+      const id = revmap.get(normalizedName) ?? -1;
       if (id === -1) {
         return {
           id: -1,
           chance: parseFloat(parts[1]) || 0,
           isUnknown: true,
-          name: rawName || "unknown",
+          name: normalizedName || "unknown",
         };
       }
-      return { id, chance: parseFloat(parts[1]) || 0, name: rawName };
+      return { id, chance: parseFloat(parts[1]) || 0, name: normalizedName };
     })
     .filter((mob) => mob !== null) ?? [];
 

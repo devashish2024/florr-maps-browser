@@ -1128,7 +1128,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
           uctx.translate(0, pad);
           let i = 0;
           for (const mob of tooltip.mobs) {
-            const sprite = mobSprites?.get(mob.id);
+            const sprite = mobSprites?.get(mob.id) || (mob.name ? mobSprites?.get(mob.name) : null);
             if (!sprite) {
               // Fallback: mob name text in icon area
               const name = mob.name || mobmap.get(mob.id);

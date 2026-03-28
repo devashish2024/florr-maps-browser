@@ -10,7 +10,7 @@ import { loadTiles } from "./lib/tileset.js";
 import { loadMapList, loadArchivedMapList } from "./lib/maplist.js";
 import { ensureMapLoaded, ensureArchivedMapLoaded, refreshMap } from "./lib/maploader.js";
 import { parseMap } from "./lib/tiled.js";
-import { svgToCanvas } from "./lib/svgrender.js";
+import { svgToCanvas, svgToCanvasImage } from "./lib/svgrender.js";
 import { fetchText } from "./lib/proxy.js";
 import { mobmap } from "./lib/mobs.js";
 import "./App.css";
@@ -18,6 +18,9 @@ import "./App.css";
 const SPECIAL_IDS = new Set([93, 115]);
 
 const MOB_SVG_BASE = "https://florr.io/mobs";
+const NAMED_MOB_SVG_SOURCES = new Map([
+  ["dummy", "/dummy.svg"],
+]);
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 const formatDuration = (ms) => {
@@ -216,6 +219,19 @@ export default function App() {
           }
           mobsDone++;
           if (!cancelled) setStatus(`Loading mob sprites... ${mobsDone}/${mobsTotal}`);
+        }
+
+        for (const [name, url] of NAMED_MOB_SVG_SOURCES) {
+          try {
+            const svg = await fetchText(url, false, {
+              ttlMs: ONE_YEAR_MS,
+              cacheKey: `mob-name:${name}`,
+            });
+            const canvas = await svgToCanvasImage(svg, 256, 256) || svgToCanvas(svg, 256, 256);
+            if (canvas) mSprites.set(name, canvas);
+          } catch {
+            // skip unavailable named mob sprites
+          }
         }
         if (!cancelled) setMobSpritesState(mSprites);
 
