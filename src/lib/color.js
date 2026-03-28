@@ -1,4 +1,4 @@
-const RarityColor = {
+export const RarityColor = {
   Common: "#7eef6d",
   Unusual: "#ffe65d",
   Rare: "#4d52e3",
@@ -6,47 +6,66 @@ const RarityColor = {
   Legendary: "#de1f1f",
   Mythic: "#1fdbde",
   Ultra: "#ff2b75",
-
-  // Unused (kept for future-proofing if needed)
   Super: "#2bffa3",
-  Unique: "#555555",
   Eternal: "#ffffff",
+  Unique: "#555555",
 };
 
-export { RarityColor };
+export const RARITY_ID_TO_NAME = {
+  0: "Common",
+  1: "Unusual",
+  2: "Rare",
+  3: "Epic",
+  4: "Legendary",
+  5: "Mythic",
+  6: "Ultra",
+  7: "Super",
+  8: "Eternal",
+  9: "Unique",
+};
 
-
-// 🔹 Single source of truth for rarity logic
 const TIERS = [
-  { max: 0, name: "Common" },     // d < 0
-  { max: 5, name: "Unusual" },    // 0 ≤ d ≤ 5
-  { max: 15, name: "Rare" },      // 5 < d ≤ 15
-  { max: 30, name: "Epic" },      // 15 < d ≤ 30
-  { max: 45, name: "Legendary" }, // 30 < d ≤ 45
-  { max: 60, name: "Mythic" },    // 45 < d ≤ 60
-  { max: Infinity, name: "Ultra" } // d > 60
+  { max: 0, name: "Common" },
+  { max: 5, name: "Unusual" },
+  { max: 15, name: "Rare" },
+  { max: 30, name: "Epic" },
+  { max: 45, name: "Legendary" },
+  { max: 60, name: "Mythic" },
+  { max: Infinity, name: "Ultra" },
 ];
 
-
-// 🔹 Core function
-const getRarity = (d) => {
-  if (isNaN(d)) return "Common";
+export const rarityFromDiff = (diff) => {
+  if (isNaN(diff)) return "Common";
 
   for (const tier of TIERS) {
-    if (d < tier.max) return tier.name;
+    if (diff < tier.max) return tier.name;
   }
 
-  return "Common"; // fallback (should never hit)
+  return "Common";
 };
 
+export const rarityFromId = (id) => {
+  if (!Number.isInteger(id)) return null;
+  return RARITY_ID_TO_NAME[id] || null;
+};
 
-// 🔹 Public APIs
-
-export const rarityFromDiff = (diff) => {
-  return getRarity(diff);
+export const colorFromRarity = (rarity) => {
+  return RarityColor[rarity] || RarityColor.Common;
 };
 
 export const colorFromDiff = (diff) => {
-  const rarity = getRarity(diff);
-  return RarityColor[rarity] || RarityColor.Common;
+  return colorFromRarity(rarityFromDiff(diff));
+};
+
+export const effectiveRarityFromSpawner = (difficulty, forceRarity) => {
+  const baseRarity = rarityFromDiff(difficulty);
+  const forcedRarity = rarityFromId(forceRarity);
+  const effectiveRarity = forcedRarity || baseRarity;
+
+  return {
+    baseRarity,
+    forcedRarity,
+    effectiveRarity,
+    effectiveColor: colorFromRarity(effectiveRarity),
+  };
 };

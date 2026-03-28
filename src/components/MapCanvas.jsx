@@ -3,7 +3,7 @@ import { Camera } from "../lib/camera.js";
 import { TileRenderer } from "../lib/renderer.js";
 import { VIEW_W, VIEW_H } from "../lib/consts.js";
 import { darkened } from "../lib/utils.js";
-import { RarityColor, rarityFromDiff } from "../lib/color.js";
+import { RarityColor, rarityFromId } from "../lib/color.js";
 import { mobmap } from "../lib/mobs.js";
 import { isMapLoaded, findWarpPointInMap } from "../lib/maploader.js";
 import { getSettings } from "../lib/settings.js";
@@ -16,6 +16,10 @@ const colorRarityInText = (text) => {
     }
   }
   return null;
+};
+
+const strikeText = (text) => {
+  return [...text].map((char) => `${char}\u0336`).join("");
 };
 
 export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapChange, cameraTarget, onCameraTargetApplied }) {
@@ -664,14 +668,21 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
             if (collision && showTooltips) {
               const contents = [];
               contents.push(["[spawn_mobs]", "#ffaaff"]);
-              contents.push(["rarity: " + rarityFromDiff(spawner.difficulty).toLowerCase(), spawner.color]);
+              const rarityText = "rarity: " + spawner.effectiveRarity.toLowerCase();
+              if (spawner.forcedRarityName && spawner.baseRarity !== spawner.effectiveRarity) {
+                contents.push([rarityText, spawner.color]);
+                contents.push([strikeText("rarity: " + spawner.baseRarity.toLowerCase()), "#9aa0a6"]);
+              } else {
+                contents.push([rarityText, spawner.color]);
+              }
               if (!isNaN(spawner.difficulty)) contents.push(["difficulty: " + spawner.difficulty, "#fff"]);
               if (!isNaN(spawner.density)) contents.push(["density: " + spawner.density, "#fff"]);
               if (!isNaN(spawner.extraSpawnDelay)) contents.push(["extra_spawn_delay: " + spawner.extraSpawnDelay, "#facbcb"]);
 
               // Color force_rarity by its rarity level
               if (!isNaN(spawner.forceRarity)) {
-                const forceRarityText = "force_rarity: " + spawner.forceRarity;
+                const forceRarityName = rarityFromId(spawner.forceRarity);
+                const forceRarityText = "force_rarity: " + (forceRarityName ? forceRarityName.toLowerCase() : spawner.forceRarity);
                 const rarityColored = colorRarityInText(forceRarityText);
                 contents.push(rarityColored || [forceRarityText, "#facbcb"]);
               }

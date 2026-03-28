@@ -1,5 +1,5 @@
 import { ungzip } from "pako";
-import { colorFromDiff } from "./color.js";
+import { effectiveRarityFromSpawner } from "./color.js";
 import { revmap, biomeSpawns } from "./mobs.js";
 import { getMapRaw } from "./maploader.js";
 
@@ -206,13 +206,17 @@ export const parseMap = (mapId) => {
           const mobstr = getPropertyStr("mobs", obj.properties);
 
           const { mobs, isBiome, biomeName } = extractBiomeMobs(mobstr);
-          const color = colorFromDiff(difficulty);
+          const rarityInfo = effectiveRarityFromSpawner(difficulty, forceRarity);
           const { points, width, height, isPoint } = buildObjectPath(obj, w, h);
 
           mobSpawners.push({
             id: obj.id, x: obj.x, y: obj.y, width, height,
             mobs, points, difficulty, density, extraSpawnDelay, forceRarity, team,
-            color, big: width > 25252 && height > 25252, rawObj: obj, isBiome, biomeName, isPoint,
+            color: rarityInfo.effectiveColor,
+            baseRarity: rarityInfo.baseRarity,
+            forcedRarityName: rarityInfo.forcedRarity,
+            effectiveRarity: rarityInfo.effectiveRarity,
+            big: width > 25252 && height > 25252, rawObj: obj, isBiome, biomeName, isPoint,
           });
           continue;
         }
