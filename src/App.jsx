@@ -73,6 +73,13 @@ export default function App() {
     return parseInt(localStorage.getItem("panel_width")) || 240;
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(() => {
+    return localStorage.getItem("desktop_sidebar_collapsed") === "true";
+  });
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(min-width: 769px)").matches;
+  });
   const [archivedMapList, setArchivedMapList] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [backgroundLoadMode, setBackgroundLoadMode] = useState(false);
@@ -86,6 +93,14 @@ export default function App() {
     const intervalId = setInterval(() => setTimerNow(Date.now()), 1000);
     return () => clearInterval(intervalId);
   }, [loading, refreshing]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 769px)");
+    const handleChange = (event) => setIsDesktop(event.matches);
+    setIsDesktop(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   const loadAndSelectMap = useCallback(async (mapId, onStatus, archived = false) => {
     const ok = archived
@@ -336,6 +351,14 @@ export default function App() {
     addEventListener("mouseup", onMouseUp);
   }, []);
 
+  const toggleDesktopSidebar = useCallback(() => {
+    setDesktopSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("desktop_sidebar_collapsed", next.toString());
+      return next;
+    });
+  }, []);
+
   const mode = loading ? "loading" : "refreshing";
   const activeStartedAt = refreshing && refreshStartedAt ? refreshStartedAt : loadStartedAt;
   const elapsedMs = Math.max(0, timerNow - activeStartedAt);
@@ -345,33 +368,69 @@ export default function App() {
       ? `Approx ${formatDuration((elapsedMs * (1 - progressRatio)) / progressRatio)} remaining`
       : `Elapsed ${formatDuration(elapsedMs)}`;
 
+  const showDesktopSidebar = isDesktop && !desktopSidebarCollapsed;
+
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
-      <FileBrowser
-        mapList={mapList}
-        archivedMapList={archivedMapList}
-        tileFiles={tileFiles}
-        currentFile={loading && currentFile?.type !== "help" ? { type: "readme" } : currentFile}
-        onFileSelect={handleFileSelect}
-        width={panelWidth}
-        isMobileOpen={sidebarOpen}
-        onMobileClose={() => setSidebarOpen(false)}
-        loading={loading}
-      />
-      <div
-        className="resize-handle"
-        onMouseDown={handleResizeStart}
-        style={{
-          width: 4,
-          cursor: "col-resize",
-          background: "#2d2d2d",
-          flexShrink: 0,
-          zIndex: 5,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = "#007acc")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = "#2d2d2d")}
-      />
+      {isDesktop ? (
+        <div
+          className={`desktop-sidebar-shell ${showDesktopSidebar ? "desktop-sidebar-shell-open" : "desktop-sidebar-shell-collapsed"}`}
+          style={{ width: showDesktopSidebar ? panelWidth + 4 : 0 }}
+        >
+          <div className="desktop-sidebar-content">
+            <FileBrowser
+              mapList={mapList}
+              archivedMapList={archivedMapList}
+              tileFiles={tileFiles}
+              currentFile={loading && currentFile?.type !== "help" ? { type: "readme" } : currentFile}
+              onFileSelect={handleFileSelect}
+              width="100%"
+              isMobileOpen={false}
+              onMobileClose={() => setSidebarOpen(false)}
+              loading={loading}
+            />
+          </div>
+          <div
+            className="resize-handle"
+            onMouseDown={showDesktopSidebar ? handleResizeStart : undefined}
+            style={{
+              width: 4,
+              cursor: showDesktopSidebar ? "col-resize" : "default",
+              background: "#2d2d2d",
+              flexShrink: 0,
+              zIndex: 5,
+            }}
+            onMouseEnter={(e) => {
+              if (showDesktopSidebar) e.currentTarget.style.background = "#007acc";
+            }}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#2d2d2d")}
+          />
+        </div>
+      ) : (
+        <FileBrowser
+          mapList={mapList}
+          archivedMapList={archivedMapList}
+          tileFiles={tileFiles}
+          currentFile={loading && currentFile?.type !== "help" ? { type: "readme" } : currentFile}
+          onFileSelect={handleFileSelect}
+          width={panelWidth}
+          isMobileOpen={sidebarOpen}
+          onMobileClose={() => setSidebarOpen(false)}
+          loading={loading}
+        />
+      )}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {isDesktop && (
+          <button
+            className="desktop-sidebar-toggle"
+            type="button"
+            onClick={toggleDesktopSidebar}
+            aria-label={showDesktopSidebar ? "Collapse sidebar" : "Expand sidebar"}
+            title={showDesktopSidebar ? "Collapse" : "Expand"}
+          >
+            <span aria-hidden="true">{showDesktopSidebar ? "❮" : "❯"}</span>
+          </button>
+        )}
         {/* Mobile hamburger */}
         <button
           className="sidebar-toggle"
