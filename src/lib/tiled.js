@@ -122,9 +122,17 @@ const extractBiomeMobs = (mobstr) => {
     .filter((x) => x.trim())
     .map((x) => {
       const parts = x.replace(";", "").split(":");
-      const id = revmap.get(parts[0]) ?? -1;
-      if (id === -1) return null;
-      return { id, chance: parseFloat(parts[1]) || 0 };
+      const rawName = parts[0]?.trim();
+      const id = revmap.get(rawName) ?? -1;
+      if (id === -1) {
+        return {
+          id: -1,
+          chance: parseFloat(parts[1]) || 0,
+          isUnknown: true,
+          name: rawName || "unknown",
+        };
+      }
+      return { id, chance: parseFloat(parts[1]) || 0, name: rawName };
     })
     .filter((mob) => mob !== null) ?? [];
 

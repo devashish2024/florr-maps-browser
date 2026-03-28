@@ -1131,7 +1131,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
             const sprite = mobSprites?.get(mob.id);
             if (!sprite) {
               // Fallback: mob name text in icon area
-              const name = mobmap.get(mob.id);
+              const name = mob.name || mobmap.get(mob.id);
               if (name) {
                 uctx.save();
                 uctx.fillStyle = "#aaa";
