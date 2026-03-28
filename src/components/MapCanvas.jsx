@@ -132,7 +132,10 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
     const minFov = () => {
       const fitW = st.viewW / (1.2 * mapData.width);
       const fitH = st.viewH / (1.2 * mapData.height);
-      const computed = Math.max(0.0001, fitW, fitH) * 0.75;
+      const isDesktopViewport = typeof window !== "undefined" && window.matchMedia("(min-width: 769px)").matches;
+      const fitValue = isDesktopViewport ? Math.min(fitW, fitH) : Math.max(fitW, fitH);
+      const fitPadding = isDesktopViewport ? 0.92 : 0.75;
+      const computed = Math.max(0.0001, fitValue * fitPadding);
       if (mapKey === "hel" || mapKey === "br/hel") return Math.min(computed, 0.03);
       return computed;
     };
