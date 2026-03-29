@@ -28,8 +28,8 @@ const TIERS = [
   { max: 5, name: "Unusual" },
   { max: 17, name: "Rare" },
   { max: 25, name: "Epic" },
-  { max: 40, name: "Legendary" },
-  { max: 60, name: "Mythic" },
+  { max: 45, name: "Legendary" },
+  { max: 65, name: "Mythic" },
   { max: Infinity, name: "Ultra" },
 ];
 
