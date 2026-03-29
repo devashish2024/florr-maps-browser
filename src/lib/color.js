@@ -25,7 +25,8 @@ export const RARITY_ID_TO_NAME = {
 };
 
 const TIERS = [
-  { max: 15, name: "Rare" },
+  { max: 5, name: "Unusual" },
+  { max: 17, name: "Rare" },
   { max: 25, name: "Epic" },
   { max: 40, name: "Legendary" },
   { max: 60, name: "Mythic" },
@@ -36,7 +37,6 @@ export const rarityFromDiff = (diff) => {
   if (!Number.isFinite(diff)) return "Unusual";
 
   if (diff < 0) return "Common";
-  if (diff === 0) return "Unusual";
 
   for (const tier of TIERS) {
     if (diff <= tier.max) return tier.name;
