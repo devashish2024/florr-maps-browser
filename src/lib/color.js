@@ -25,23 +25,24 @@ export const RARITY_ID_TO_NAME = {
 };
 
 const TIERS = [
-  { max: 0, name: "Common" },
-  { max: 5, name: "Unusual" },
   { max: 15, name: "Rare" },
-  { max: 30, name: "Epic" },
-  { max: 45, name: "Legendary" },
+  { max: 25, name: "Epic" },
+  { max: 40, name: "Legendary" },
   { max: 60, name: "Mythic" },
   { max: Infinity, name: "Ultra" },
 ];
 
 export const rarityFromDiff = (diff) => {
-  if (isNaN(diff)) return "Common";
+  if (!Number.isFinite(diff)) return "Unusual";
+
+  if (diff < 0) return "Common";
+  if (diff === 0) return "Unusual";
 
   for (const tier of TIERS) {
-    if (diff < tier.max) return tier.name;
+    if (diff <= tier.max) return tier.name;
   }
 
-  return "Common";
+  return "Unusual";
 };
 
 export const rarityFromId = (id) => {
@@ -50,7 +51,7 @@ export const rarityFromId = (id) => {
 };
 
 export const colorFromRarity = (rarity) => {
-  return RarityColor[rarity] || RarityColor.Common;
+  return RarityColor[rarity] || RarityColor.Unusual;
 };
 
 export const colorFromDiff = (diff) => {
