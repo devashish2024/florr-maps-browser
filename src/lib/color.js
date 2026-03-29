@@ -25,6 +25,7 @@ export const RARITY_ID_TO_NAME = {
 };
 
 export const rarityFromDiff = (diff) => {
+  if (typeof (diff) !== "number") return "Unusual";
   if (!Number.isFinite(diff)) return "Unusual";
 
   if (diff < 0) return "Common";
