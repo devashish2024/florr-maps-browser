@@ -8,15 +8,11 @@ uniform vec2 resolution;
 uniform vec4 data;
 uniform vec3 offset;
 void main() {
-  // Snap tile edges to integer pixel boundaries.
-  // Each edge is derived from the tile grid coordinate directly so that
-  // the shared edge between adjacent tiles evaluates to the identical
-  // float value, eliminating sub-pixel seams.
   vec2 pixelStart = floor((data.xy * data.zw - offset.xy) / offset.z + 0.5);
   vec2 pixelEnd   = floor(((data.xy + 1.0) * data.zw - offset.xy) / offset.z + 0.5);
 
-  float t = (coord.x + 1.0) * 0.5;        // 0 = left edge, 1 = right edge
-  float s = 1.0 - (coord.y + 1.0) * 0.5;  // 0 = top  edge, 1 = bottom edge (screen-y)
+  float t = (coord.x + 1.0) * 0.5;
+  float s = 1.0 - (coord.y + 1.0) * 0.5;
 
   float screenX = mix(pixelStart.x, pixelEnd.x, t);
   float screenY = mix(pixelStart.y, pixelEnd.y, s);
@@ -139,28 +135,50 @@ export class TileRenderer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+    let lastTexture = null;
+    let lastH = -1, lastV = -1, lastD = -1;
+
     for (let tx = minX; tx <= maxX; tx++) {
       for (let ty = minY; ty <= maxY; ty++) {
         const index = tx + ty * gw;
 
-        for (const layer of layers) {
+        for (let li = 0; li < layers.length; li++) {
+          const layer = layers[li];
           if (!layer.data) continue;
-          const tid = Number(layer.data[index]);
-          if (tid === 0) continue;
 
-          const isHori = (tid & FLIP_HORIZONTAL) !== 0;
-          const isVert = (tid & FLIP_VERTICAL) !== 0;
-          const isDiag = (tid & FLIP_DIAGONAL) !== 0;
+          const tid = layer.data[index];
+          if (!tid) continue;
+
+          const isHori = (tid & FLIP_HORIZONTAL) !== 0 ? 1 : 0;
+          const isVert = (tid & FLIP_VERTICAL) !== 0 ? 1 : 0;
+          const isDiag = (tid & FLIP_DIAGONAL) !== 0 ? 1 : 0;
           const id = tid & ~(FLIP_HORIZONTAL | FLIP_VERTICAL | FLIP_DIAGONAL);
 
           const texture = this.textures.get(id - firstId);
           if (!texture) continue;
 
-          gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.uniform1ui(this.uHori, isHori ? 1 : 0);
-          gl.uniform1ui(this.uVert, isVert ? 1 : 0);
-          gl.uniform1ui(this.uDiag, isDiag ? 1 : 0);
+          // ✅ bind only if changed
+          if (texture !== lastTexture) {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            lastTexture = texture;
+          }
+
+          // ✅ update uniforms only if changed
+          if (isHori !== lastH) {
+            gl.uniform1i(this.uHori, isHori);
+            lastH = isHori;
+          }
+          if (isVert !== lastV) {
+            gl.uniform1i(this.uVert, isVert);
+            lastV = isVert;
+          }
+          if (isDiag !== lastD) {
+            gl.uniform1i(this.uDiag, isDiag);
+            lastD = isDiag;
+          }
+
           gl.uniform4f(this.uData, tx, ty, tileW, tileH);
+
           gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
         }
       }
