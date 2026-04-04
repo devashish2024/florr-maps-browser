@@ -8,14 +8,24 @@ uniform vec2 resolution;
 uniform vec4 data;
 uniform vec3 offset;
 void main() {
-  vec2 res = resolution * 0.5 * offset.z;
-  vec2 render = ((data.xy * data.zw + data.zw * 0.5) - offset.xy) / res - 1.0;
-  vec2 scaling = data.zw * 0.5 / res;
-  vec2 position = vec2(
-    coord.x * scaling.x + render.x,
-    coord.y * scaling.y - render.y
+  // Snap tile edges to integer pixel boundaries.
+  // Each edge is derived from the tile grid coordinate directly so that
+  // the shared edge between adjacent tiles evaluates to the identical
+  // float value, eliminating sub-pixel seams.
+  vec2 pixelStart = floor((data.xy * data.zw - offset.xy) / offset.z + 0.5);
+  vec2 pixelEnd   = floor(((data.xy + 1.0) * data.zw - offset.xy) / offset.z + 0.5);
+
+  float t = (coord.x + 1.0) * 0.5;        // 0 = left edge, 1 = right edge
+  float s = 1.0 - (coord.y + 1.0) * 0.5;  // 0 = top  edge, 1 = bottom edge (screen-y)
+
+  float screenX = mix(pixelStart.x, pixelEnd.x, t);
+  float screenY = mix(pixelStart.y, pixelEnd.y, s);
+
+  gl_Position = vec4(
+    screenX / (resolution.x * 0.5) - 1.0,
+    1.0 - screenY / (resolution.y * 0.5),
+    0.0, 1.0
   );
-  gl_Position = vec4(position, 0.0, 1.0);
   vcoord = coord;
 }`;
 
