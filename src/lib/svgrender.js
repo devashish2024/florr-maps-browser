@@ -2,7 +2,7 @@ import { PI2 } from "./consts.js";
 
 const valid = (p) => p !== "none";
 
-export const svgToCanvas = (svg, width, height) => {
+export const svgToCanvasNormal = (svg, width, height) => {
   const temp = document.createElement("div");
   temp.innerHTML = svg;
 
@@ -144,6 +144,27 @@ export const svgToCanvas = (svg, width, height) => {
 
   loop(s);
   ctx.restore();
+  return canvas;
+};
+
+export const svgToCanvas = async (svg, width, height, mob = false) => {
+  if (!mob) return svgToCanvasNormal(svg, width, height);
+  const image = await svgToCanvasImage(svg, width, height);
+  if (!image) return null;
+
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  // ✅ Fill white background FIRST
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+
+  // ✅ Then draw SVG result on top
+  ctx.drawImage(image, 0, 0, width, height);
+
   return canvas;
 };
 
