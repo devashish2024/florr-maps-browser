@@ -151,25 +151,8 @@ export const svgToCanvas = async (svg, width, height, mob = false) => {
 
   if (!mob) return svgToCanvasNormal(svg, width, height);
 
-  try {
-    // For mob sprites, use createImageBitmap directly
-    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-
-    const bitmap = await createImageBitmap(blob, {
-      resizeWidth: width,
-      resizeHeight: height,
-      resizeQuality: "high"
-    });
-
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-
-    ctx.drawImage(bitmap, 0, 0);
-    return canvas;
-  } catch {
-    return null;
-  }
+  // For mob sprites, use Image-based rendering via svgToCanvasImage
+  return svgToCanvasImage(svg, width, height);
 };
 
 export const svgToCanvasImage = async (svg, width, height) => {
