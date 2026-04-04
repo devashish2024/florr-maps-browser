@@ -24,6 +24,7 @@ const NAMED_MOB_SVG_SOURCES = new Map([
   ["oracle", "/special/oracle.svg"],
   ["trader", "/special/trader.svg"],
   ["titan", "/special/titan.svg"],
+  ["dev", "/special/dev.png"],
 ]);
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 

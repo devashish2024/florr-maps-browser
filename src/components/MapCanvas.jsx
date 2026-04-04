@@ -966,37 +966,87 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
           for (const obj of mapData.unknownObjects) {
             octx.save();
             octx.translate(obj.x, obj.y);
-            octx.fillStyle = "#666666";
-            octx.strokeStyle = "#999999";
-            octx.lineWidth = lw;
-            octx.beginPath();
 
-            const collision = octx.isPointInPath(obj.points, st.cursorX, st.cursorY);
-            octx.globalAlpha = collision ? 0.1 : 0.0;
-            octx.fill(obj.points);
-            octx.globalAlpha = 1.0;
-            octx.stroke(obj.points);
-            octx.restore();
-
-            if (collision && showTooltips) {
-              const contents = [["[" + (obj.type || "unknown") + "]", "#ccccff"]];
-              if (obj.name) contents.push(["name: " + obj.name, "#fff"]);
-              contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
-              contents.push(["size: (" + Math.round(obj.width * 10) / 10 + "x" + Math.round(obj.height * 10) / 10 + ")", "#aaaaff"]);
-              contents.push(["id: " + obj.id, "#999"]);
-
-              // Add all properties to tooltip
-              const allProps = getObjectProperties(obj.rawObj);
-              for (const prop of allProps) {
-                contents.push(prop);
+            // Special handling for dev_flower: render dev.png image
+            const isDevFlower = obj.type === "dev_flower" || obj.name === "dev_flower" || obj.type?.includes("dev_flower") || obj.name?.includes("dev_flower");
+            if (isDevFlower) {
+              const devSprite = mobSprites?.get("dev");
+              const size = 50;
+              
+              // Draw the sprite if available, otherwise draw placeholder
+              if (devSprite) {
+                octx.drawImage(devSprite, -size / 2, -size / 2, size, size);
+              } else {
+                // Fallback: draw a colored square
+                octx.fillStyle = "#ffaa44";
+                octx.fillRect(-size / 2, -size / 2, size, size);
+                octx.strokeStyle = "#ff8800";
+                octx.lineWidth = 2;
+                octx.strokeRect(-size / 2, -size / 2, size, size);
               }
 
-              // If no properties, show a message
-              if (allProps.length === 0) {
-                contents.push(["(no properties)", "#666"]);
+              // Check collision with the square area
+              const collision = st.cursorX >= obj.x - size / 2 && st.cursorX <= obj.x + size / 2 &&
+                st.cursorY >= obj.y - size / 2 && st.cursorY <= obj.y + size / 2;
+
+              if (collision && showTooltips) {
+                let headerColor = "#ffaa44";
+                let headerText = "[dev_flower]";
+
+                const contents = [[headerText, headerColor]];
+                contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
+                contents.push(["size: 50x50", "#aaaaff"]);
+                contents.push(["id: " + obj.id, "#999"]);
+
+                // Add all properties to tooltip
+                const allProps = getObjectProperties(obj.rawObj);
+                for (const prop of allProps) {
+                  contents.push(prop);
+                }
+
+                // If no properties, show a message
+                if (allProps.length === 0) {
+                  contents.push(["(no properties)", "#666"]);
+                }
+
+                newTooltips.set("unknown_" + obj.id, { contents });
               }
 
-              newTooltips.set("unknown_" + obj.id, { contents });
+              octx.restore();
+            } else {
+              // Default rendering for unknown objects
+              octx.fillStyle = "#666666";
+              octx.strokeStyle = "#999999";
+              octx.lineWidth = lw;
+              octx.beginPath();
+
+              const collision = octx.isPointInPath(obj.points, st.cursorX, st.cursorY);
+              octx.globalAlpha = collision ? 0.1 : 0.0;
+              octx.fill(obj.points);
+              octx.globalAlpha = 1.0;
+              octx.stroke(obj.points);
+              octx.restore();
+
+              if (collision && showTooltips) {
+                const contents = [["[" + (obj.type || "unknown") + "]", "#ccccff"]];
+                if (obj.name) contents.push(["name: " + obj.name, "#fff"]);
+                contents.push(["pos: (" + Math.round(obj.x * 10) / 10 + "," + Math.round(obj.y * 10) / 10 + ")", "#aaaaff"]);
+                contents.push(["size: (" + Math.round(obj.width * 10) / 10 + "x" + Math.round(obj.height * 10) / 10 + ")", "#aaaaff"]);
+                contents.push(["id: " + obj.id, "#999"]);
+
+                // Add all properties to tooltip
+                const allProps = getObjectProperties(obj.rawObj);
+                for (const prop of allProps) {
+                  contents.push(prop);
+                }
+
+                // If no properties, show a message
+                if (allProps.length === 0) {
+                  contents.push(["(no properties)", "#666"]);
+                }
+
+                newTooltips.set("unknown_" + obj.id, { contents });
+              }
             }
           }
         }
