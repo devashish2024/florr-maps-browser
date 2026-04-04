@@ -19,7 +19,11 @@ const SPECIAL_IDS = new Set([93, 115]);
 
 const MOB_SVG_BASE = "https://florr.io/mobs";
 const NAMED_MOB_SVG_SOURCES = new Map([
-  ["dummy", "/dummy.svg"],
+  ["dummy", "/special/dummy.svg"],
+  ["crystal", "/special/crystal.svg"],
+  ["oracle", "/special/oracle.svg"],
+  ["trader", "/special/trader.svg"],
+  ["titan", "/special/titan.svg"],
 ]);
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
