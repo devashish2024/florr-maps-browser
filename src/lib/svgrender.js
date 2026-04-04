@@ -148,24 +148,29 @@ export const svgToCanvasNormal = (svg, width, height) => {
 };
 
 export const svgToCanvas = async (svg, width, height, mob = false) => {
+
   if (!mob) return svgToCanvasNormal(svg, width, height);
-  const image = await svgToCanvasImage(svg, width, height);
-  if (!image) return null;
 
-  const canvas = new OffscreenCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
+  try {
+    // For mob sprites, use createImageBitmap directly with DPI scaling
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const dpr = globalThis.devicePixelRatio || 1;
 
-  // ✅ Fill white background FIRST
-  ctx.save();
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+    const bitmap = await createImageBitmap(blob, {
+      resizeWidth: width * dpr,
+      resizeHeight: height * dpr,
+      resizeQuality: "high"
+    });
 
-  // ✅ Then draw SVG result on top
-  ctx.drawImage(image, 0, 0, width, height);
+    const canvas = new OffscreenCanvas(width * dpr, height * dpr);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
 
-  return canvas;
+    ctx.drawImage(bitmap, 0, 0);
+    return canvas;
+  } catch {
+    return null;
+  }
 };
 
 export const svgToCanvasImage = async (svg, width, height) => {
