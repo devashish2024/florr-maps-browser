@@ -10,7 +10,7 @@ import { loadTiles } from "./lib/tileset.js";
 import { loadMapList, loadArchivedMapList } from "./lib/maplist.js";
 import { ensureMapLoaded, ensureArchivedMapLoaded, refreshMap } from "./lib/maploader.js";
 import { parseMap } from "./lib/tiled.js";
-import { svgToCanvas, svgToCanvasImage } from "./lib/svgrender.js";
+import { svgToCanvas, svgToCanvasImage, imageUrlToCanvas } from "./lib/svgrender.js";
 import { fetchText } from "./lib/proxy.js";
 import { mobmap } from "./lib/mobs.js";
 import "./App.css";
@@ -228,12 +228,19 @@ export default function App() {
 
         for (const [name, url] of NAMED_MOB_SVG_SOURCES) {
           try {
-            const svg = await fetchText(url, false, {
-              ttlMs: ONE_YEAR_MS,
-              cacheKey: `mob-name:${name}`,
-            });
-            const canvas = await svgToCanvasImage(svg, 256, 256) || await svgToCanvas(svg, 256, 256, true);
-            if (canvas) mSprites.set(name, canvas);
+            // Handle PNG images separately from SVG
+            if (url.endsWith(".png")) {
+              const canvas = await imageUrlToCanvas(url, 256, 256);
+              if (canvas) mSprites.set(name, canvas);
+            } else {
+              // Handle SVG files
+              const svg = await fetchText(url, false, {
+                ttlMs: ONE_YEAR_MS,
+                cacheKey: `mob-name:${name}`,
+              });
+              const canvas = await svgToCanvasImage(svg, 256, 256) || await svgToCanvas(svg, 256, 256, true);
+              if (canvas) mSprites.set(name, canvas);
+            }
           } catch {
             // skip unavailable named mob sprites
           }

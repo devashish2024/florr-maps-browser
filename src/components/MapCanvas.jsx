@@ -25,6 +25,9 @@ const getTooltipLine = (entry) => {
   return { text: entry.text, fill: entry.fill, strike: Boolean(entry.strike) };
 };
 
+// Dev flower rendering size (in world units)
+const DEV_FLOWER_SIZE = 100;
+
 export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapChange, cameraTarget, onCameraTargetApplied }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -971,7 +974,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
             const isDevFlower = obj.type === "dev_flower" || obj.name === "dev_flower" || obj.type?.includes("dev_flower") || obj.name?.includes("dev_flower");
             if (isDevFlower) {
               const devSprite = mobSprites?.get("dev");
-              const size = 50;
+              const size = DEV_FLOWER_SIZE;
 
               // Draw the sprite if available, otherwise draw placeholder
               if (devSprite) {

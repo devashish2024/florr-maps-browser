@@ -181,3 +181,24 @@ export const svgToCanvasImage = async (svg, width, height) => {
     return null;
   }
 };
+
+export const imageUrlToCanvas = async (imageUrl, width, height) => {
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    const loaded = new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = reject;
+    });
+    image.src = imageUrl;
+    await loaded;
+
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(image, 0, 0, width, height);
+    return canvas;
+  } catch {
+    return null;
+  }
+};
