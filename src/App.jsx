@@ -135,7 +135,7 @@ export default function App() {
         const tileSprites = new Map();
         for (const [id, svg] of tileSvgs) {
           const s = SPECIAL_IDS.has(id) ? 2048 : 512;
-          const canvas = svgToCanvas(svg, s, s);
+          const canvas = await svgToCanvas(svg, s, s);
           if (canvas) tileSprites.set(id, canvas);
         }
         if (!cancelled) setSprites(tileSprites);
@@ -216,7 +216,7 @@ export default function App() {
               ttlMs: ONE_YEAR_MS,
               cacheKey: `mob:${id}`,
             });
-            const canvas = svgToCanvas(svg, 256, 256);
+            const canvas = await svgToCanvas(svg, 256, 256);
             if (canvas) mSprites.set(id, canvas);
           } catch {
             // skip unavailable mob sprites
@@ -231,7 +231,7 @@ export default function App() {
               ttlMs: ONE_YEAR_MS,
               cacheKey: `mob-name:${name}`,
             });
-            const canvas = await svgToCanvasImage(svg, 256, 256) || svgToCanvas(svg, 256, 256);
+            const canvas = await svgToCanvasImage(svg, 256, 256) || await svgToCanvas(svg, 256, 256);
             if (canvas) mSprites.set(name, canvas);
           } catch {
             // skip unavailable named mob sprites
@@ -344,7 +344,7 @@ export default function App() {
     const tileSprites = new Map();
     for (const [id, svg] of tileSvgs) {
       const s = SPECIAL_IDS.has(id) ? 2048 : 512;
-      const canvas = svgToCanvas(svg, s, s);
+      const canvas = await svgToCanvas(svg, s, s);
       if (canvas) tileSprites.set(id, canvas);
     }
     setSprites(tileSprites);
