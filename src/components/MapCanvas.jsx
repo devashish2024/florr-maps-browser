@@ -972,7 +972,7 @@ export default function MapCanvas({ mapData, sprites, mobSprites, mapKey, onMapC
             if (isDevFlower) {
               const devSprite = mobSprites?.get("dev");
               const size = 50;
-              
+
               // Draw the sprite if available, otherwise draw placeholder
               if (devSprite) {
                 octx.drawImage(devSprite, -size / 2, -size / 2, size, size);
