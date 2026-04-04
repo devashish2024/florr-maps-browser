@@ -216,7 +216,7 @@ export default function App() {
               ttlMs: ONE_YEAR_MS,
               cacheKey: `mob:${id}`,
             });
-            const canvas = await svgToCanvas(svg, 256, 256);
+            const canvas = await svgToCanvas(svg, 256, 256, true);
             if (canvas) mSprites.set(id, canvas);
           } catch {
             // skip unavailable mob sprites
@@ -231,7 +231,7 @@ export default function App() {
               ttlMs: ONE_YEAR_MS,
               cacheKey: `mob-name:${name}`,
             });
-            const canvas = await svgToCanvasImage(svg, 256, 256) || await svgToCanvas(svg, 256, 256);
+            const canvas = await svgToCanvasImage(svg, 256, 256) || await svgToCanvas(svg, 256, 256, true);
             if (canvas) mSprites.set(name, canvas);
           } catch {
             // skip unavailable named mob sprites
