@@ -23,9 +23,13 @@ FlorrMapBrowser fetches the latest map data directly from florr.io's APIs and re
 ## Developing / Running locally
 
 Install [npm](https://nodejs.org/en/download) and [git](https://git-scm.com/) first.
+
 (i) `git clone https://github.com/devashish2024/florr-maps-browser.git`
+
 (ii) `cd florr-maps-browser`
+
 (iii) `npm i`
+
 (iv) `npm run dev`
 
 ## Also check out
